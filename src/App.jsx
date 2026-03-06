@@ -563,77 +563,6 @@ function AdminModal({onClose,showT}){
   </div>;
 }
 
-// ==================== TIME SCROLL PICKER ====================
-function TimeScrollPicker({value, onChange}){
-  const hours=Array.from({length:24},(_,i)=>String(i).padStart(2,"0"));
-  const minutes=["00","05","10","15","20","25","30","35","40","45","50","55"];
-  const [selH,setSelH]=useState(value?value.split(":")[0]:"08");
-  const [selM,setSelM]=useState(value?value.split(":")[1]?.slice(0,2):"00");
-  const hrRef=useRef();const mnRef=useRef();
-
-  useEffect(()=>{
-    if(value){const[h,m]=value.split(":");setSelH(h||"08");setSelM((m||"00").slice(0,2));}
-  },[value]);
-
-  const scrollToSelected=(ref,items,sel)=>{
-    if(!ref.current)return;
-    const idx=items.indexOf(sel);
-    if(idx>=0)ref.current.scrollTop=idx*44-44;
-  };
-
-  useEffect(()=>{scrollToSelected(hrRef,hours,selH);},[selH]);
-  useEffect(()=>{scrollToSelected(mnRef,minutes,selM);},[selM]);
-
-  const pickH=h=>{setSelH(h);onChange(h+":"+selM);};
-  const pickM=m=>{setSelM(m);onChange(selH+":"+m);};
-
-  const col=(items,sel,onPick,ref)=>(
-    <div ref={ref} style={{flex:1,height:176,overflowY:"auto",scrollSnapType:"y mandatory",
-      scrollbarWidth:"none",WebkitOverflowScrolling:"touch"}}
-      className="time-col">
-      <div style={{height:66}}/>
-      {items.map(v=>(
-        <div key={v} onClick={()=>onPick(v)}
-          style={{height:44,display:"flex",alignItems:"center",justifyContent:"center",
-            scrollSnapAlign:"start",fontSize:v===sel?22:16,fontWeight:v===sel?800:400,
-            color:v===sel?"#0B2545":"#94a3b8",cursor:"pointer",
-            background:v===sel?"#EBF0FA":"transparent",
-            transition:"all 0.15s",margin:"0 4px",borderRadius:8}}>
-          {v}
-        </div>
-      ))}
-      <div style={{height:66}}/>
-    </div>
-  );
-
-  return(
-    <div style={{background:"white",borderRadius:14,border:"1.5px solid #e2e8f0",overflow:"hidden"}}>
-      <div style={{background:"#f8fafc",padding:"8px 14px",display:"flex",alignItems:"center",
-        justifyContent:"space-between",borderBottom:"1px solid #e2e8f0"}}>
-        <span style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1}}>PILIH JAM</span>
-        <span style={{fontSize:20,fontWeight:900,color:"#0B2545",letterSpacing:2,
-          background:"#EBF0FA",padding:"4px 14px",borderRadius:8}}>{selH}:{selM}</span>
-      </div>
-      <div style={{display:"flex",position:"relative"}}>
-        <div style={{position:"absolute",top:"50%",left:8,right:8,height:44,
-          transform:"translateY(-50%)",background:"rgba(11,37,69,0.05)",
-          borderRadius:10,pointerEvents:"none",border:"1.5px solid #EBF0FA"}}/>
-        <div style={{display:"flex",alignItems:"center",flex:1}}>
-          <div style={{flex:1,textAlign:"center",fontSize:10,fontWeight:700,color:"#94a3b8",
-            padding:"6px 0 0",position:"absolute",top:6,left:"25%",transform:"translateX(-50%)"}}>JAM</div>
-          {col(hours,selH,pickH,hrRef)}
-        </div>
-        <div style={{width:2,background:"#e2e8f0",alignSelf:"stretch",margin:"8px 0"}}/>
-        <div style={{display:"flex",alignItems:"center",flex:1}}>
-          <div style={{flex:1,textAlign:"center",fontSize:10,fontWeight:700,color:"#94a3b8",
-            padding:"6px 0 0",position:"absolute",top:6,right:"25%",transform:"translateX(50%)"}}>MENIT</div>
-          {col(minutes,selM,pickM,mnRef)}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ==================== FORM VIEW (top-level to prevent re-mount) ====================
 function FormView({form,setForm,editId,setEditId,setTab,isMobile,onSubmit,onCancel,onOpenAI,onUndanganUpload,showT}){
   return <div style={{background:"white",borderRadius:12,padding:isMobile?"16px":"24px",boxShadow:"0 2px 12px rgba(0,0,0,0.07)",border:"1.5px solid "+GOLD,animation:"up 0.2s ease"}}>
@@ -652,7 +581,18 @@ function FormView({form,setForm,editId,setEditId,setTab,isMobile,onSubmit,onCanc
       ))}
       <div style={{marginBottom:12}}>
         <label style={{display:"block",fontSize:12,color:"#475569",fontWeight:600,marginBottom:4}}>Jam Pelaksanaan *</label>
-        <TimeScrollPicker value={form.jam} onChange={v=>setForm(p=>({...p,jam:v}))}/>
+        <input
+  type="time"
+  value={form.jam || ""}
+  onChange={e=>setForm(p=>({...p, jam:e.target.value}))}
+  style={{
+    width:"100%",
+    padding:"10px",
+    borderRadius:"8px",
+    border:"1px solid #e2e8f0",
+    fontSize:"14px"
+  }}
+/>
       </div>
     </div>
     <div style={{marginBottom:12}}>
