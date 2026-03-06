@@ -230,15 +230,43 @@ function AIModal({onFill,onClose}){
       const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(f);});
       const isPdf=f.type==="application/pdf";
       const bodyContent=isPdf
-        ?[{type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}},{type:"text",text:'Undangan ini. Kembalikan HANYA JSON: {"namaAcara":"","tanggal":"YYYY-MM-DD","jam":"HH:MM","penyelenggara":"","kontak":"","pakaian":"","jenisKegiatan":"Menghadiri","catatan":"","buktiUndangan":"","lokasi":"","untukPimpinan":["walikota"]}'}]
-        :[{type:"image",source:{type:"base64",media_type:f.type,data:b64}},{type:"text",text:'Baca teks undangan. Kembalikan HANYA JSON: {"namaAcara":"","tanggal":"YYYY-MM-DD","jam":"HH:MM","penyelenggara":"","kontak":"","pakaian":"","jenisKegiatan":"Menghadiri","catatan":"","buktiUndangan":"","lokasi":"","untukPimpinan":["walikota"]}'}];
-      const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:800,messages:[{role:"user",content:bodyContent}]})});
-      if(!resp.ok)throw new Error("API error");
+        ?[{type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}},{type:"text",text:'Baca dokumen undangan ini. Kembalikan HANYA JSON (tanpa markdown, tanpa penjelasan): {"namaAcara":"","tanggal":"YYYY-MM-DD","jam":"HH:MM","penyelenggara":"","kontak":"","pakaian":"PDH","jenisKegiatan":"Menghadiri","catatan":"","buktiUndangan":"","lokasi":"","untukPimpinan":["walikota"]}'}]
+        :[{type:"image",source:{type:"base64",media_type:f.type,data:b64}},{type:"text",text:'Baca teks undangan di gambar ini. Kembalikan HANYA JSON (tanpa markdown, tanpa penjelasan): {"namaAcara":"","tanggal":"YYYY-MM-DD","jam":"HH:MM","penyelenggara":"","kontak":"","pakaian":"PDH","jenisKegiatan":"Menghadiri","catatan":"","buktiUndangan":"","lokasi":"","untukPimpinan":["walikota"]}'}];
+      // Call via /api/ai proxy (Vercel serverless function) to avoid CORS & hide API key
+      const resp=await fetch("/api/ai",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          model:"claude-sonnet-4-20250514",
+          max_tokens:1000,
+          messages:[{role:"user",content:bodyContent}]
+        })
+      });
+      if(resp.status===404){
+        throw new Error("Fungsi AI belum dikonfigurasi. Pastikan file api/ai.js sudah diupload ke GitHub dan ANTHROPIC_API_KEY sudah diset di Vercel Environment Variables.");
+      }
+      if(resp.status===401||resp.status===403){
+        throw new Error("API Key Anthropic tidak valid atau belum diset. Cek ANTHROPIC_API_KEY di Vercel Settings > Environment Variables.");
+      }
+      if(!resp.ok){
+        const errText=await resp.text().catch(()=>"");
+        throw new Error("Server error ("+resp.status+"): "+errText.slice(0,120));
+      }
       const data=await resp.json();
+      if(data.error)throw new Error(data.error);
       const txt=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
-      const m=txt.match(/\{[\s\S]*\}/);if(!m)throw new Error("Data tidak ditemukan");
-      const parsed=JSON.parse(m[0]);setResult(parsed);setEdited({...emptyForm,...parsed});
-    }catch(e){setErr("Gagal: "+e.message);}
+      const m=txt.match(/\{[\s\S]*\}/);
+      if(!m)throw new Error("AI tidak mengembalikan data JSON. Coba upload gambar yang lebih jelas.");
+      const parsed=JSON.parse(m[0]);
+      setResult(parsed);
+      setEdited({...emptyForm,...parsed});
+    }catch(e){
+      if(e.message.includes("Failed to fetch")||e.message.includes("NetworkError")){
+        setErr("Koneksi gagal. Periksa: (1) File api/ai.js sudah ada di GitHub, (2) ANTHROPIC_API_KEY sudah diset di Vercel, (3) Redeploy Vercel setelah menambah env variable.");
+      } else {
+        setErr(e.message);
+      }
+    }
     setLoading(false);
   };
   const handleFile=f=>{if(!f)return;if(!f.type.match(/pdf|image/)){setErr("Gunakan PDF atau gambar.");return;}analyze(f);};
@@ -259,7 +287,12 @@ function AIModal({onFill,onClose}){
           </div>
           {err&&<div style={{marginTop:12,padding:"10px 12px",background:"#fee2e2",borderRadius:8,fontSize:13,color:"#991b1b"}}>{err}</div>}
         </>}
-        {loading&&<div style={{textAlign:"center",padding:"40px 20px"}}><div style={{fontSize:32,marginBottom:12}}>Memproses...</div><div style={{fontSize:14,fontWeight:700,color:NAVY}}>AI membaca dokumen...</div></div>}
+        {loading&&<div style={{textAlign:"center",padding:"40px 20px"}}>
+          <div style={{width:48,height:48,border:"4px solid #e0e7ff",borderTopColor:"#6366f1",borderRadius:"50%",animation:"spin 0.9s linear infinite",margin:"0 auto 16px"}}/>
+          <div style={{fontSize:14,fontWeight:700,color:NAVY,marginBottom:6}}>AI sedang membaca dokumen...</div>
+          <div style={{fontSize:12,color:"#64748b"}}>Menganalisa isi undangan, mohon tunggu</div>
+          <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
+        </div>}
         {edited&&<>
           <div style={{background:"#d1fae5",borderRadius:9,padding:"9px 12px",marginBottom:14,fontSize:13,color:GREEN,fontWeight:700}}>Analisa selesai. Periksa dan edit sebelum digunakan.</div>
           {[{k:"namaAcara",l:"Nama Acara"},{k:"tanggal",l:"Tanggal",t:"date"},{k:"jam",l:"Jam",t:"time"},{k:"penyelenggara",l:"Penyelenggara"},{k:"kontak",l:"Kontak"},{k:"buktiUndangan",l:"No. Surat"},{k:"lokasi",l:"Lokasi"},{k:"catatan",l:"Catatan"}].map(f=><div key={f.k} style={{marginBottom:9}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:3}}>{f.l}</label><input type={f.t||"text"} value={edited[f.k]||""} onChange={e=>setEdited(p=>({...p,[f.k]:e.target.value}))} style={inp}/></div>)}
