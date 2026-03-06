@@ -1066,8 +1066,7 @@ export default function App(){
           </div>
         </div>
       </div>}
-    </>;
-  };
+  </>);
 
   // ==================== FORM ====================
   // FormView is a top-level component (defined outside App) to prevent re-mount on every keystroke
