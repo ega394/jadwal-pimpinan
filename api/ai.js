@@ -69,7 +69,7 @@ module.exports = async function handler(req, res) {
   if (!parts.length) return res.status(400).json({ error: "Tidak ada konten untuk diproses." });
 
   try {
-    const model = "gemini-2.0-flash";
+    const model = "gemini-2.5-flash-preview-04-17";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const result = await httpsPost(url, {
