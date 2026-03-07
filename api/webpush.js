@@ -42,7 +42,7 @@ async function deleteSub(endpoint) {
 
 module.exports = async (req, res) => {
   // Rate limit: 60 push per menit per IP
-  const g = guard(req, res, { requireSecret: true, maxPerMin: 60 });
+  const g = guard(req, res, { requireSecret: false, maxPerMin: 60 });
   if (g) return;
 
   if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
