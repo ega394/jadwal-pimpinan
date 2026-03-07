@@ -155,11 +155,11 @@ export default async function handler(req, res) {
     if (chosenMethod === "generateContent") {
       result = await httpsPost(geminiUrl, {
         contents: [{ parts: parts }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
+        generationConfig: { temperature: 0.1, maxOutputTokens: 4096 },
       });
     } else {
       const combinedText = parts.map(p => p.text || "").join("\n\n").trim();
-      const payload = { prompt: { text: combinedText }, temperature: 0.1, maxOutputTokens: 2048 };
+      const payload = { prompt: { text: combinedText }, temperature: 0.1, maxOutputTokens: 4096 };
       result = await httpsPost(geminiUrl, payload);
     }
 
