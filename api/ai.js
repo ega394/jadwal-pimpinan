@@ -1,7 +1,15 @@
 const https = require("https");
 const { guard } = require("./_middleware");
 
-// httpsPost dengan custom headers support
+// Model gratis dengan vision, diurutkan dari yang paling prioritas
+// Jika model pertama gagal/tidak tersedia, otomatis coba berikutnya
+const FREE_VISION_MODELS = [
+  "meta-llama/llama-4-maverick:free",      // Meta Llama 4, vision, aktif 2026
+  "meta-llama/llama-4-scout:free",         // Llama 4 Scout, lebih ringan
+  "google/gemma-3-27b-it:free",            // Google Gemma 3, vision
+  "openrouter/auto",                        // OpenRouter auto-pilih model tersedia
+];
+
 function httpsPost(url, body, extraHeaders = {}) {
   return new Promise((resolve, reject) => {
     const urlObj = new URL(url);
@@ -53,7 +61,7 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const apiKey = process.env.OPENROUTER_API_KEY || process.env.GEMINI_API_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     return res.status(500).json({
       error: "OPENROUTER_API_KEY belum diset di Vercel Environment Variables."
@@ -74,7 +82,6 @@ module.exports = async function handler(req, res) {
     if (block.type === "text") {
       openrouterContent.push({ type: "text", text: block.text });
     } else if ((block.type === "image" || block.type === "document") && block.source) {
-      // OpenRouter pakai format image_url dengan base64
       openrouterContent.push({
         type: "image_url",
         image_url: {
@@ -88,36 +95,58 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: "Tidak ada konten untuk diproses." });
   }
 
-  try {
-    const result = await httpsPost(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        model: "google/gemini-2.5-pro-exp-03-25:free",
-        messages: [{ role: "user", content: openrouterContent }],
-        max_tokens: 4096,
-        temperature: 0.1,
-      },
-      {
-        "Authorization": "Bearer " + apiKey,
-        "HTTP-Referer": "https://prokopim.tarakankota.go.id",
-        "X-Title": "Prokopim Tarakan",
+  const orHeaders = {
+    "Authorization": "Bearer " + apiKey,
+    "HTTP-Referer": "https://prokopim.tarakankota.go.id",
+    "X-Title": "Prokopim Tarakan",
+  };
+
+  // Coba tiap model secara berurutan hingga berhasil
+  let lastError = "Semua model tidak tersedia saat ini.";
+
+  for (const model of FREE_VISION_MODELS) {
+    try {
+      const result = await httpsPost(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+          model,
+          messages: [{ role: "user", content: openrouterContent }],
+          max_tokens: 4096,
+          temperature: 0.1,
+        },
+        orHeaders
+      );
+
+      // Lanjut ke model berikutnya jika endpoint tidak tersedia
+      if (result.status === 503 || result.status === 404 ||
+          (result.body?.error?.message || "").toLowerCase().includes("no endpoints")) {
+        lastError = `[${model}] tidak tersedia`;
+        continue;
       }
-    );
 
-    if (result.status !== 200) {
-      const msg = result.body?.error?.message || ("OpenRouter error " + result.status);
-      return res.status(result.status).json({ error: String(msg) });
+      if (result.status !== 200) {
+        lastError = result.body?.error?.message || `Error ${result.status} dari ${model}`;
+        continue;
+      }
+
+      const text = result.body?.choices?.[0]?.message?.content || "";
+      if (!text) {
+        lastError = `[${model}] tidak menghasilkan teks`;
+        continue;
+      }
+
+      // Berhasil — kembalikan hasil + info model yang dipakai
+      return res.status(200).json({
+        content: [{ type: "text", text }],
+        model_used: model,
+      });
+
+    } catch (err) {
+      lastError = `[${model}] error: ${err.message}`;
+      continue;
     }
-
-    const text = result.body?.choices?.[0]?.message?.content || "";
-
-    if (!text) {
-      return res.status(500).json({ error: "AI tidak menghasilkan teks. Coba foto lebih jelas." });
-    }
-
-    return res.status(200).json({ content: [{ type: "text", text }] });
-
-  } catch (err) {
-    return res.status(500).json({ error: "Gagal menghubungi AI: " + String(err.message || err) });
   }
+
+  // Semua model gagal
+  return res.status(503).json({ error: lastError });
 };
