@@ -84,7 +84,7 @@ module.exports = async function handler(req, res) {
 
   try {
     const geminiUrl =
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=" + apiKey;
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey;
 
     const result = await httpsPost(geminiUrl, {
       contents: [{ parts: parts }],
