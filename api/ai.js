@@ -1,21 +1,21 @@
 export default async function handler(req, res) {
-res.setHeader("Access-Control-Allow-Origin", “*”);
-res.setHeader("Access-Control-Allow-Methods", “POST, OPTIONS”);
-res.setHeader(“Access-Control-Allow-Headers”, “Content-Type”);
-if (req.method === “OPTIONS”) return res.status(200).end();
-if (req.method !== “POST”) return res.status(405).json({ error: “Method not allowed” });
+res.setHeader("Access-Control-Allow-Origin", "*");
+res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS”);
+res.setHeader("Access-Control-Allow-Headers", "Content-Type”);
+if (req.method === "OPTIONS”) return res.status(200).end();
+if (req.method !== "POST”) return res.status(405).json({ error: "Method not allowed” });
 
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
 return res.status(500).json({
-error: “GEMINI_API_KEY belum diset di Vercel. Buka Settings > Environment Variables > tambah GEMINI_API_KEY, lalu Redeploy.”
+error: "GEMINI_API_KEY belum diset di Vercel. Buka Settings > Environment Variables > tambah GEMINI_API_KEY, lalu Redeploy.”
 });
 }
 
 try {
-const body = req.body || {};
+const body = typeof req.body === "string" ? JSON.parse(req.body) : (req.body || {});
 const messages = body.messages || [];
-if (!messages.length) return res.status(400).json({ error: “Request tidak valid: messages kosong” });
+if (!messages.length) return res.status(400).json({ error: "Request tidak valid: messages kosong” });
 
 ```
 const contentArr = Array.isArray(messages[0].content)
@@ -74,6 +74,6 @@ return res.status(200).json({ content: [{ type: "text", text }] });
 ```
 
 } catch (err) {
-return res.status(500).json({ error: “Server error: “ + String(err.message || err) });
+return res.status(500).json({ error: "Server error: " + String(err.message || err) });
 }
 }
