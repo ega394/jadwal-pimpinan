@@ -29,8 +29,8 @@ const WF={
   disetujui:         {label:"Disetujui",         color:"#065f46",bg:"#d1fae5"},
   ditolak:           {label:"Ditolak",           color:"#991b1b",bg:"#fee2e2"},
 };
-const PAKAIAN=["PDH","PDH Batik Tarakan","Batik Lengan Panjang","PSL","PSR","PSH","PDUB","Pakaian Lapangan","Pakaian Olahraga","Bebas Rapi"];
-const JENIS=["Menghadiri","Sambutan","Pengarahan"];
+const PAKAIAN=["PDH","PDH Batik Tarakan","Batik Lengan Panjang","PSL","PSR","PSH","PDUB","Pakaian Lapangan","Pakaian Olahraga","Muslim", "Bebas Rapi"];
+const JENIS=["Menghadiri","Sambutan","Pengarahan","Inspektur Upacara"];
 const PEJABAT=["Sekda","Asisten Pemerintahan dan Kesra","Asisten Perekonomian dan Pembangunan","Asisten Administrasi Umum"];
 const ROLES_WITH_REPORT=["staf","kasubbag","kabag","timkom"];
 
