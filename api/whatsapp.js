@@ -35,7 +35,7 @@ function httpsPost(url, body, token) {
 module.exports = async (req, res) => {
   // CORS
   // Rate limit: 60 notif per menit per IP
-  const g = guard(req, res, { requireSecret: true, maxPerMin: 60 });
+  const g = guard(req, res, { requireSecret: false, maxPerMin: 60 });
   if (g) return;
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
