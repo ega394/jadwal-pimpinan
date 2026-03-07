@@ -130,8 +130,7 @@ function makeICS(ev){
     "DTEND:"+dtEnd,
     "SUMMARY:"+ev.namaAcara,
     ...(ev.lokasi?["LOCATION:"+ev.lokasi]:[]),
-    ...(desc?["DESCRIPTION:"+desc.replace(/
-/g,"\n")]:[]),
+    ...(desc?["DESCRIPTION:"+desc.split("\n").join("\\n")]:[]),
     "BEGIN:VALARM",
     "TRIGGER:-PT30M",
     "ACTION:DISPLAY",
