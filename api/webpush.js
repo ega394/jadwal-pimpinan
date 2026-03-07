@@ -1,6 +1,7 @@
 // api/webpush.js — Vercel Serverless: simpan subscription & kirim push
 // Requires: npm install web-push (tambah ke package.json)
 const webpush = require("web-push");
+const { guard } = require("./_middleware");
 
 const VAPID_PUBLIC  = process.env.VAPID_PUBLIC;
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE;
@@ -40,10 +41,9 @@ async function deleteSub(endpoint) {
 }
 
 module.exports = async (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  if (req.method === "OPTIONS") return res.status(200).end();
+  // Rate limit: 60 push per menit per IP
+  const g = guard(req, res, { requireSecret: true, maxPerMin: 60 });
+  if (g) return;
 
   if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
     return res.status(500).json({ error: "VAPID keys belum diset di Vercel env" });
