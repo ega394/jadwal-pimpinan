@@ -1,26 +1,5 @@
-import https from "https";
-
-function httpsGet(url) {
-  return new Promise((resolve, reject) => {
-    const urlObj = new URL(url);
-    const options = {
-      hostname: urlObj.hostname,
-      path: urlObj.pathname + urlObj.search,
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-    };
-    const req = https.request(options, (res) => {
-      let raw = "";
-      res.on("data", (chunk) => { raw += chunk; });
-      res.on("end", () => {
-        try { resolve({ status: res.statusCode, body: JSON.parse(raw) }); }
-        catch (e) { resolve({ status: res.statusCode, body: raw }); }
-      });
-    });
-    req.on("error", reject);
-    req.end();
-  });
-}
+const https = require("https");
+const { guard } = require("./_middleware");
 
 function httpsPost(url, body) {
   return new Promise((resolve, reject) => {
@@ -32,19 +11,21 @@ function httpsPost(url, body) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(data),
+        "Content-Length": Buffer.byteLength(data, "utf8"),
       },
     };
     const req = https.request(options, (res) => {
-      let raw = "";
-      res.on("data", (chunk) => { raw += chunk; });
+      const chunks = [];
+      res.on("data", (chunk) => { chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)); });
       res.on("end", () => {
+        const raw = Buffer.concat(chunks).toString("utf8");
         try { resolve({ status: res.statusCode, body: JSON.parse(raw) }); }
-        catch (e) { resolve({ status: res.statusCode, body: { error: raw } }); }
+        catch (e) { resolve({ status: res.statusCode, body: { error: "Parse failed: " + raw.slice(0, 200) } }); }
       });
+      res.on("error", reject);
     });
     req.on("error", reject);
-    req.write(data);
+    req.write(data, "utf8");
     req.end();
   });
 }
@@ -61,40 +42,28 @@ function readBody(req) {
   });
 }
 
-function normalizeModelName(rawName) {
-  if (!rawName || typeof rawName !== "string") return null;
-  const parts = rawName.split("/");
-  return parts[parts.length - 1];
-}
-
-function findModelForMethod(models, methodName) {
-  if (!Array.isArray(models)) return null;
-  for (const m of models) {
-    if (m && Array.isArray(m.supportedMethods) && m.supportedMethods.includes(methodName)) return m;
-  }
-  for (const m of models) {
-    try {
-      const s = JSON.stringify(m).toLowerCase();
-      if (s.includes(methodName.toLowerCase())) return m;
-    } catch (e) {}
-  }
-  return null;
-}
-
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "GEMINI_API_KEY belum diset di Vercel Environment Variables." });
+  if (!apiKey) {
+    return res.status(500).json({
+      error: "GEMINI_API_KEY belum diset di Vercel Environment Variables."
+    });
+  }
 
   const body = await readBody(req);
   const messages = body.messages || [];
-  if (!messages.length) return res.status(400).json({ error: "Request tidak valid." });
+  if (!messages.length) {
+    return res.status(400).json({ error: "Request tidak valid." });
+  }
 
   const contentArr = Array.isArray(messages[0].content)
     ? messages[0].content
@@ -102,94 +71,51 @@ export default async function handler(req, res) {
 
   const parts = [];
   for (const block of contentArr) {
-    if (block.type === "text") parts.push({ text: block.text });
-    else if ((block.type === "image" || block.type === "document") && block.source) {
+    if (block.type === "text") {
+      parts.push({ text: block.text });
+    } else if ((block.type === "image" || block.type === "document") && block.source) {
       parts.push({ inline_data: { mime_type: block.source.media_type, data: block.source.data } });
     }
   }
 
-  if (!parts.length) return res.status(400).json({ error: "Tidak ada konten untuk diproses." });
+  if (!parts.length) {
+    return res.status(400).json({ error: "Tidak ada konten untuk diproses." });
+  }
 
   try {
-    const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
-    const listResult = await httpsGet(listUrl);
+    const geminiUrl =
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=" + apiKey;
 
-    console.log("ListModels response status:", listResult.status);
-    console.log("ListModels body:", JSON.stringify(listResult.body));
+    const result = await httpsPost(geminiUrl, {
+      contents: [{ parts: parts }],
+      generationConfig: { temperature: 0.1, maxOutputTokens: 4096 },
+    });
 
-    if (listResult.status !== 200) {
-      return res.status(500).json({ error: "Gagal memanggil ListModels." });
-    }
-
-    const models = Array.isArray(listResult.body.models) ? listResult.body.models : listResult.body.models || listResult.body;
-    const modelForGenerateContent = findModelForMethod(models, "generateContent");
-    const modelForGenerateText = findModelForMethod(models, "generateText");
-
-    let chosenModel = null;
-    let chosenMethod = null;
-
-    if (modelForGenerateContent) { chosenModel = modelForGenerateContent; chosenMethod = "generateContent"; }
-    else if (modelForGenerateText) { chosenModel = modelForGenerateText; chosenMethod = "generateText"; }
-    else {
-      const fallback = (Array.isArray(models) ? models.find(m => m.name && m.name.toLowerCase().includes("gemini")) : null);
-      if (fallback) { chosenModel = fallback; chosenMethod = "generateContent"; }
-    }
-
-    if (!chosenModel || !chosenModel.name) {
-      return res.status(500).json({ error: "Tidak menemukan model yang sesuai. Periksa ListModels di log." });
-    }
-
-    const rawModelName = chosenModel.name;
-    const modelId = normalizeModelName(rawModelName);
-    if (!modelId) return res.status(500).json({ error: "Nama model tidak valid: " + String(rawModelName) });
-
-    const baseUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}`;
-    const geminiUrl = `${baseUrl}:${chosenMethod}?key=${apiKey}`;
-
-    console.log("Chosen model raw name:", rawModelName);
-    console.log("Using model id:", modelId);
-    console.log("Chosen method:", chosenMethod);
-    console.log("Gemini URL:", geminiUrl);
-
-    let result;
-    if (chosenMethod === "generateContent") {
-      result = await httpsPost(geminiUrl, {
-        contents: [{ parts: parts }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 4096 },
-      });
-    } else {
-      const combinedText = parts.map(p => p.text || "").join("\n\n").trim();
-      const payload = { prompt: { text: combinedText }, temperature: 0.1, maxOutputTokens: 4096 };
-      result = await httpsPost(geminiUrl, payload);
-    }
-
-    console.log("Generate response status:", result && result.status);
-    console.log("Generate response body:", JSON.stringify(result && result.body));
-
-    if (!result || result.status !== 200) {
-      const msg = result && result.body && result.body.error && result.body.error.message
+    if (result.status !== 200) {
+      const msg = result.body && result.body.error && result.body.error.message
         ? String(result.body.error.message)
-        : "Gemini error " + (result ? result.status : "no response");
-      return res.status(result ? result.status : 500).json({ error: msg });
+        : "Gemini error " + result.status;
+      return res.status(result.status).json({ error: msg });
     }
 
-    let text = "";
-    if (result.body && result.body.candidates && result.body.candidates[0] && result.body.candidates[0].content && result.body.candidates[0].content.parts) {
-      const p = result.body.candidates[0].content.parts[0];
-      if (p && p.text) text = String(p.text);
+    const text =
+      result.body &&
+      result.body.candidates &&
+      result.body.candidates[0] &&
+      result.body.candidates[0].content &&
+      result.body.candidates[0].content.parts &&
+      result.body.candidates[0].content.parts[0] &&
+      result.body.candidates[0].content.parts[0].text
+        ? String(result.body.candidates[0].content.parts[0].text)
+        : "";
+
+    if (!text) {
+      return res.status(500).json({ error: "Gemini tidak menghasilkan teks. Coba foto/PDF lebih jelas." });
     }
-    if (!text && result.body && typeof result.body.output_text === "string") text = result.body.output_text;
-    if (!text && result.body && result.body.candidates && result.body.candidates[0]) {
-      const cand = result.body.candidates[0];
-      if (cand.output) text = String(cand.output);
-      else if (cand.text) text = String(cand.text);
-    }
-    if (!text) text = JSON.stringify(result.body).slice(0, 2000);
 
     return res.status(200).json({ content: [{ type: "text", text: text }] });
 
   } catch (err) {
-    console.error("Handler error:", err);
-    return res.status(500).json({ error: "Gagal memproses permintaan: " + String(err.message || err) });
+    return res.status(500).json({ error: "Gagal menghubungi Gemini: " + String(err.message || err) });
   }
-}
+};
