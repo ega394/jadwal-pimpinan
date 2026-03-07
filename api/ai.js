@@ -1,3 +1,44 @@
+const https = require("https");
+
+function httpsPost(url, body) {
+  return new Promise((resolve, reject) => {
+    const urlObj = new URL(url);
+    const data = JSON.stringify(body);
+    const options = {
+      hostname: urlObj.hostname,
+      path: urlObj.pathname + urlObj.search,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(data),
+      },
+    };
+    const req = https.request(options, (res) => {
+      let raw = "";
+      res.on("data", (chunk) => { raw += chunk; });
+      res.on("end", () => {
+        try { resolve({ status: res.statusCode, body: JSON.parse(raw) }); }
+        catch (e) { resolve({ status: res.statusCode, body: { error: raw } }); }
+      });
+    });
+    req.on("error", reject);
+    req.write(data);
+    req.end();
+  });
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let raw = "";
+    req.on("data", (chunk) => { raw += chunk.toString(); });
+    req.on("end", () => {
+      try { resolve(JSON.parse(raw || "{}")); }
+      catch (e) { resolve({}); }
+    });
+    req.on("error", reject);
+  });
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -15,17 +56,7 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  let body = req.body;
-
-  // Kalau body masih string atau undefined, parse manual
-  if (!body || typeof body === "string") {
-    try {
-      body = JSON.parse(body || "{}");
-    } catch (e) {
-      body = {};
-    }
-  }
-
+  const body = await readBody(req);
   const messages = body.messages || [];
   if (!messages.length) {
     return res.status(400).json({ error: "Request tidak valid." });
@@ -40,12 +71,7 @@ module.exports = async function handler(req, res) {
     if (block.type === "text") {
       parts.push({ text: block.text });
     } else if ((block.type === "image" || block.type === "document") && block.source) {
-      parts.push({
-        inline_data: {
-          mime_type: block.source.media_type,
-          data: block.source.data
-        }
-      });
+      parts.push({ inline_data: { mime_type: block.source.media_type, data: block.source.data } });
     }
   }
 
@@ -54,45 +80,39 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=" + apiKey,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: parts }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 1000 }
-        })
-      }
-    );
+    const geminiUrl =
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=" + apiKey;
 
-    const data = await response.json();
+    const result = await httpsPost(geminiUrl, {
+      contents: [{ parts: parts }],
+      generationConfig: { temperature: 0.1, maxOutputTokens: 1000 },
+    });
 
-    if (!response.ok) {
-      const msg = (data && data.error && data.error.message)
-        ? String(data.error.message)
-        : "Gemini error " + response.status;
-      return res.status(response.status).json({ error: msg });
+    if (result.status !== 200) {
+      const msg = result.body && result.body.error && result.body.error.message
+        ? String(result.body.error.message)
+        : "Gemini error " + result.status;
+      return res.status(result.status).json({ error: msg });
     }
 
     const text =
-      data &&
-      data.candidates &&
-      data.candidates[0] &&
-      data.candidates[0].content &&
-      data.candidates[0].content.parts &&
-      data.candidates[0].content.parts[0] &&
-      data.candidates[0].content.parts[0].text
-        ? String(data.candidates[0].content.parts[0].text)
+      result.body &&
+      result.body.candidates &&
+      result.body.candidates[0] &&
+      result.body.candidates[0].content &&
+      result.body.candidates[0].content.parts &&
+      result.body.candidates[0].content.parts[0] &&
+      result.body.candidates[0].content.parts[0].text
+        ? String(result.body.candidates[0].content.parts[0].text)
         : "";
 
     if (!text) {
-      return res.status(500).json({ error: "Gemini tidak menghasilkan teks." });
+      return res.status(500).json({ error: "Gemini tidak menghasilkan teks. Coba foto/PDF lebih jelas." });
     }
 
     return res.status(200).json({ content: [{ type: "text", text: text }] });
 
   } catch (err) {
-    return res.status(500).json({ error: "Fetch gagal: " + String(err.message || err) });
+    return res.status(500).json({ error: "Gagal menghubungi Gemini: " + String(err.message || err) });
   }
 };
