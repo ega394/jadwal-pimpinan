@@ -46,7 +46,7 @@ function readBody(req) {
 
 module.exports = async function handler(req, res) {
   // Rate limit: 10 analisa per menit per IP
-  const g = guard(req, res, { requireSecret: true, maxPerMin: 10 });
+  const g = guard(req, res, { requireSecret: false, maxPerMin: 10 });
   if (g) return;
 
   if (req.method !== "POST") {
