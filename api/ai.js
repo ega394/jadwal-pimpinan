@@ -92,7 +92,7 @@ module.exports = async function handler(req, res) {
     const result = await httpsPost(
       "https://openrouter.ai/api/v1/chat/completions",
       {
-        model: "google/gemini-2.5-flash-preview:free",
+        model: "google/gemini-2.0-flash-exp:free",
         messages: [{ role: "user", content: openrouterContent }],
         max_tokens: 4096,
         temperature: 0.1,
