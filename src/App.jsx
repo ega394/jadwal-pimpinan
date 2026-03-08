@@ -1430,7 +1430,7 @@ export default function App(){
     await new Promise(r=>setTimeout(r,700));
     setLoginPhase("#TARAKANHIBOT");
     await new Promise(r=>setTimeout(r,800));
-    setLoginLoading(true);
+    setLoginLoading(false);
     setUser(candidate);setTab("jadwal");
     try{localStorage.setItem("jp_session",JSON.stringify({username:candidate.username}));}catch{}
     registerPush(candidate.username,candidate.role);
@@ -1448,7 +1448,7 @@ export default function App(){
       await new Promise(r=>setTimeout(r,900));
       setLoginPhase("#TARAKANHIBOT");
       await new Promise(r=>setTimeout(r,600));
-      setLoginLoading(true);
+      setLoginLoading(false);
       setUser(u);setTab("jadwal");try{localStorage.setItem("jp_session",JSON.stringify({username:un}));}catch{}registerPush(un,u.role);}
     catch(e){setBioErr("Biometrik gagal: "+e.message);}
     setBioLoading(false);
