@@ -1714,7 +1714,7 @@ export default function App(){
               </div>)}
             </div>
           </details>
-          <div style={{marginTop:"auto",paddingTop:24,textAlign:"center",color:MUTED,fontSize:10,letterSpacing:1.5,opacity:0.5}}>Copyright Prokpim Tarakan, 0.6 Alpha · Release 20260308</div>
+          <div style={{marginTop:"auto",paddingTop:24,textAlign:"center",color:MUTED,fontSize:10,letterSpacing:1.5,opacity:0.5}}>Copyright Prokopim Tarakan, 0.6 Alpha · Release 20260308</div>
         </div>
       </>}
 
@@ -1742,7 +1742,7 @@ export default function App(){
               </div>)}
             </div>
           </div>
-          <div style={{color:MUTED,fontSize:10,letterSpacing:1.5,opacity:0.5}}>PROKOPIM TARAKAN v2.0 · 2025</div>
+          <div style={{color:MUTED,fontSize:10,letterSpacing:1.5,opacity:0.5}}>Copyright Prokopim Tarakan, 0.6 Alpha · Release 20260308</div>
         </div>
 
         {/* Right panel login */}
