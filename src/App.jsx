@@ -1607,6 +1607,7 @@ export default function App(){
 
   // ==================== LOGIN ====================
   if(!user){
+    if(loginLoading)return(<div style={{position:"fixed",inset:0,zIndex:9999,background:"linear-gradient(160deg,#0A1628 0%,#142238 60%,#0D1F35 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20}}><style>{CSS}</style><img src="/logo_tarakan.png" alt="" style={{height:72,width:"auto",objectFit:"contain",filter:"drop-shadow(0 4px 20px rgba(0,0,0,0.5))",marginBottom:8,animation:"pulse 1.5s ease infinite"}} onError={e=>e.target.style.display="none"}/><div style={{color:"white",fontSize:22,fontWeight:800,letterSpacing:"0.5px"}}>Prokopim Tarakan</div><div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16}}><div style={{width:48,height:48,position:"relative"}}><div style={{position:"absolute",inset:0,border:"3px solid rgba(212,175,90,0.2)",borderTopColor:"#D4AF5A",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/></div><div style={{color:"#D4AF5A",fontSize:14,fontWeight:600,letterSpacing:"0.3px",animation:"pulse 1s ease infinite"}}>{loginPhase}</div></div></div>);
     const features=[
       ["📋","Workflow Approval","Staf → Kasubbag → Kabag"],
       ["🤖","Analisa AI","Upload undangan, isi otomatis"],
