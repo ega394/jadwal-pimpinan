@@ -1424,12 +1424,12 @@ export default function App(){
     if(!ok){setLE("Username atau password salah.");return;}
     // Loading screen 2 detik
     setLoginLoading(true);
-    setLoginPhase("Memverifikasi identitas...");
+    setLoginPhase("berikan yang terbaik...");
     await new Promise(r=>setTimeout(r,700));
-    setLoginPhase("Memuat data jadwal...");
+    setLoginPhase("untuk kota kota...");
     await new Promise(r=>setTimeout(r,700));
-    setLoginPhase("Menyiapkan dashboard...");
-    await new Promise(r=>setTimeout(r,600));
+    setLoginPhase("#TARAKANHIBOT");
+    await new Promise(r=>setTimeout(r,800));
     setLoginLoading(false);
     setUser(candidate);setTab("jadwal");
     try{localStorage.setItem("jp_session",JSON.stringify({username:candidate.username}));}catch{}
