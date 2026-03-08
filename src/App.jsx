@@ -1426,7 +1426,7 @@ export default function App(){
     setLoginLoading(true);
     setLoginPhase("berikan yang terbaik...");
     await new Promise(r=>setTimeout(r,700));
-    setLoginPhase("untuk kota kota...");
+    setLoginPhase("untuk kota kita...");
     await new Promise(r=>setTimeout(r,700));
     setLoginPhase("#TARAKANHIBOT");
     await new Promise(r=>setTimeout(r,800));
@@ -1444,9 +1444,9 @@ export default function App(){
       await bioAuthenticate(un);
       setLoginLoading(true);setLoginPhase("Memverifikasi biometrik...");
       await new Promise(r=>setTimeout(r,700));
-      setLoginPhase("Memuat data jadwal...");
-      await new Promise(r=>setTimeout(r,700));
-      setLoginPhase("Menyiapkan dashboard...");
+      setLoginPhase("berikan yang terbaik untuk kota kita...");
+      await new Promise(r=>setTimeout(r,900));
+      setLoginPhase("#TARAKANHIBOT");
       await new Promise(r=>setTimeout(r,600));
       setLoginLoading(false);
       setUser(u);setTab("jadwal");try{localStorage.setItem("jp_session",JSON.stringify({username:un}));}catch{}registerPush(un,u.role);}
