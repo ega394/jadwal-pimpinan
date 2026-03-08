@@ -1424,11 +1424,11 @@ export default function App(){
     if(!ok){setLE("Username atau password salah.");return;}
     // Loading screen 2 detik
     setLoginLoading(true);
-    setLoginPhase("Memverifikasi identitas...");
+    setLoginPhase("berikan yang terbaik...");
     await new Promise(r=>setTimeout(r,700));
-    setLoginPhase("Memuat data jadwal...");
+    setLoginPhase("demi mewujudkan...");
     await new Promise(r=>setTimeout(r,700));
-    setLoginPhase("Menyiapkan dashboard...");
+    setLoginPhase("#TARAKANHIBOT");
     await new Promise(r=>setTimeout(r,600));
     setLoginLoading(false);
     setUser(candidate);setTab("jadwal");
