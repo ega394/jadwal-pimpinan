@@ -2517,7 +2517,7 @@ export default function App(){
       <input type="date" value={filterTo} onChange={e=>setFilterTo(e.target.value)} style={{padding:"5px 12px",borderRadius:9,border:"1.5px solid #CBD5E1",fontSize:12,color:"#334155",background:"white"}}/>
       {filterFrom&&filterTo&&<span style={{fontSize:11,color:"#0A1628",fontWeight:700,background:"#C9A84C22",padding:"4px 10px",borderRadius:6,border:"1px solid #C9A84C44"}}>{filterFrom} — {filterTo}</span>}
     </div>}
-    </>
+    </>}
 
     {/* ── Content area ── */}
     <div style={{flex:1,overflowY:"auto",padding:isMobile?"12px 14px calc(env(safe-area-inset-bottom,0px) + 72px)":"24px 32px 48px"}}>
