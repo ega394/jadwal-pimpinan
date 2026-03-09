@@ -13,7 +13,7 @@ function RegisterModal({onClose, onSuccess}){
   const [form,setForm]=React.useState({nama:"",jabatan:"",noWA:"",username:"",password:"",konfirmasi:"",role:"staf",alasan:""});
   const [err,setErr]=React.useState("");
   const [sent,setSent]=React.useState(false);
-  const ROLE_OPTS=[{v:"staf",l:"Staf Protokol"},{v:"staf_input",l:"Staf Protokol (hak input jadwal)"},{v:"timkom",l:"Staf Komunikasi & Dokumentasi"},{v:"ajudan_walikota",l:"Ajudan Wali Kota"},{v:"ajudan_wakilwalikota",l:"Ajudan Wakil Wali Kota"}];
+  const ROLE_OPTS=[{v:"staf",l:"Staf Protokol"},{v:"staf_input",l:"Staf Protokol (hak input jadwal)"},{v:"admin_rk",l:"Admin Rencana Kegiatan"},{v:"timkom",l:"Staf Komunikasi & Dokumentasi"},{v:"ajudan_walikota",l:"Ajudan Wali Kota"},{v:"ajudan_wakilwalikota",l:"Ajudan Wakil Wali Kota"}];
   const inp={width:"100%",padding:"10px 13px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:14,outline:"none",background:"white",boxSizing:"border-box"};
   const submit=async()=>{
     setErr("");
@@ -27,6 +27,8 @@ function RegisterModal({onClose, onSuccess}){
     const hash=await sha256(form.password);
     const reg={...form,username:form.username.toLowerCase().trim(),password:hash,id:Date.now(),tanggal:new Date().toISOString()};
     savePendingRegs([...pending,reg]);
+    // Simpan juga ke Supabase agar Kabag bisa lihat dari device lain
+    dbSavePendingReg(reg).catch(()=>{});
     window.dispatchEvent(new StorageEvent("storage",{key:"pending_registrations"}));
     setSent(true);
   };
@@ -106,6 +108,8 @@ const ALL_ROLE_DEFS=[
   {key:"ajudan_walikota",label:"Ajudan WK",icon:"clip"},{key:"ajudan_wakilwalikota",label:"Ajudan WWK",icon:"clip"},
   {key:"timkom",        label:"Tim Komunikasi & Dokumentasi",  icon:"attach"},
   {key:"staf",          label:"Staf Protokol",                 icon:"pencil"},
+  {key:"staf_input",    label:"Staf Protokol (Input)",         icon:"pencil"},
+  {key:"admin_rk",      label:"Admin Rencana Kegiatan",        icon:"pencil"},
   {key:"kasubbag_protokol",      label:"Kasubbag Protokol",             icon:"search"},
   {key:"kabag",         label:"Kabag Prokopim",                icon:"check"},
 ];
@@ -122,15 +126,16 @@ const ROLE_LABEL={
   kabag:"Kabag Prokopim",
   kasubbag_protokol:"Kasubbag Protokol",kasubbag_komdokpim:"Kasubbag Komdokpim",
   ajudan:"Ajudan",
-  staf:"Staf Protokol",staf_input:"Staf Protokol (Input)",
+  staf:"Staf Protokol",staf_input:"Staf Protokol (Input)",admin_rk:"Admin RK",
   timkom:"Staf Komunikasi & Dokumentasi",
 };
 // Role hierarchy untuk penugasan: siapa bisa menugaskan siapa
 const ASSIGN_ROLES={
-  kasubbag_protokol:["staf","staf_input"],
-  kasubbag_komdokpim:["timkom"],
-  kabag:["staf","staf_input","timkom","ajudan_walikota","ajudan_wakilwalikota"],
+  kasubbag_protokol:["staf","staf_input","admin_rk","kasubbag_protokol"],
+  kasubbag_komdokpim:["timkom","kasubbag_komdokpim"],
+  kabag:["staf","staf_input","admin_rk","timkom","ajudan_walikota","ajudan_wakilwalikota","kasubbag_protokol","kasubbag_komdokpim"],
   timkom:["timkom"],
+  admin_rk:["admin_rk"],
 };
 
 // Inject CSS animasi untuk SambutanBlock loading state
@@ -151,8 +156,8 @@ if(typeof document!=="undefined"&&!document.getElementById("prokopim-anim")){
 const PAKAIAN=["PDH","PDH Batik Tarakan","Batik Lengan Panjang","Batik Muslim","PSL","PSR","PSH","PDUB","Pakaian Lapangan","Pakaian Olahraga","Bebas Rapi","Lainnya"];
 const JENIS=["Menghadiri","Sambutan","Pengarahan"];
 const PEJABAT=["Sekda","Asisten Pemerintahan dan Kesra","Asisten Perekonomian dan Pembangunan","Asisten Administrasi Umum"];
-const ROLES_WITH_REPORT=["staf","staf_input","kasubbag_protokol","kasubbag_komdokpim","kabag","timkom"];
-const STAF_ROLES=["staf","staf_input","timkom"];
+const ROLES_WITH_REPORT=["staf","staf_input","admin_rk","kasubbag_protokol","kasubbag_komdokpim","kabag","timkom"];
+const STAF_ROLES=["staf","staf_input","admin_rk","timkom"];
 const KASUBBAG_ROLES=["kasubbag_protokol","kasubbag_komdokpim"];
 
 // ==================== USERS ====================
@@ -190,6 +195,7 @@ const DEFAULT_USERS=[
   {username:"kasubbag_protokol",      password:"Ksbg@2025",    role:"kasubbag_protokol",      nama:"Kasubbag Protokol",                jabatan:"Kasubbag Protokol"},
   {username:"kasubbag_komdokpim",password:"Kdp@2025",    role:"kasubbag_komdokpim",nama:"Kasubbag Komdokpim",           jabatan:"Kasubbag Komunikasi dan Pendokumentasian Tugas Pimpinan"},
   {username:"kabag",         password:"Kabag@2025",   role:"kabag",         nama:"Kabag Protokol & Komunikasi",      jabatan:"Kepala Bagian Protokol & Komunikasi Pimpinan"},
+  {username:"admin_rk",      password:"AdminRK@2025", role:"admin_rk",      nama:"Admin Rencana Kegiatan",           jabatan:"Admin Rencana Kegiatan Pimpinan"},
 ];
 function loadUsers(){
   // Pakai cache jika sudah diisi oleh initUsers()
@@ -259,6 +265,20 @@ const forDB=ev=>{const d={...ev};if(d.sambutanFile?.startsWith("data:"))d.sambut
 async function dbLoadAll(){if(!SUPA_OK)return null;const r=await fetch(SUPA_URL+"/rest/v1/jadwal?select=data&order=id",{headers:H()});if(!r.ok)throw new Error(await r.text());return(await r.json()).map(x=>x.data);}
 async function dbUpsert(ev){if(!SUPA_OK)return;await fetch(SUPA_URL+"/rest/v1/jadwal",{method:"POST",headers:{...H(),Prefer:"resolution=merge-duplicates"},body:JSON.stringify({id:ev.id,data:forDB(ev)})});}
 async function dbDelete(id){if(!SUPA_OK)return;await fetch(SUPA_URL+"/rest/v1/jadwal?id=eq."+id,{method:"DELETE",headers:H()});}
+
+// ── Pending registrations via Supabase (tabel: pending_regs) ──
+async function dbLoadPendingRegs(){
+  if(!SUPA_OK)return null;
+  try{const r=await fetch(SUPA_URL+"/rest/v1/pending_regs?select=data&order=id",{headers:H()});if(!r.ok)return null;return(await r.json()).map(x=>x.data);}catch{return null;}
+}
+async function dbSavePendingReg(reg){
+  if(!SUPA_OK)return;
+  await fetch(SUPA_URL+"/rest/v1/pending_regs",{method:"POST",headers:{...H(),Prefer:"resolution=merge-duplicates"},body:JSON.stringify({id:reg.id,data:reg})});
+}
+async function dbDeletePendingReg(id){
+  if(!SUPA_OK)return;
+  await fetch(SUPA_URL+"/rest/v1/pending_regs?id=eq."+id,{method:"DELETE",headers:H()});
+}
 async function storageUpload(bucket,evId,file){
   if(!SUPA_OK)return null;
   const path=evId+"/"+Date.now()+"_"+file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
@@ -591,7 +611,8 @@ function SambutanBlock({ev,canUpload,onUploadDocx,onRemove}){
 
 // ==================== AI MODAL ====================
 function AIModal({onFill,onClose}){
-  const ref=useRef();const[drag,setDrag]=useState(false);const[loading,setLoading]=useState(false);const[result,setResult]=useState(null);const[edited,setEdited]=useState(null);const[err,setErr]=useState("");
+  const ref=useRef();const undanganRef=useRef();const[drag,setDrag]=useState(false);const[loading,setLoading]=useState(false);const[result,setResult]=useState(null);const[edited,setEdited]=useState(null);const[err,setErr]=useState("");const[undanganFile,setUndanganFile]=useState(null);const[undanganNama,setUndanganNama]=useState("");const[validErr,setValidErr]=useState("");
+  const REQUIRED_FIELDS=["namaAcara","tanggal","jam","penyelenggara","kontak","buktiUndangan","pakaian","jenisKegiatan","lokasi"];
   // Kompres gambar ke maks 1024px & kualitas 0.75 sebelum kirim ke API
   const compressImage=async(file)=>{
     return new Promise((resolve)=>{
@@ -696,11 +717,23 @@ function AIModal({onFill,onClose}){
         </div>}
         {edited&&<>
           <div style={{background:"#d1fae5",borderRadius:9,padding:"9px 12px",marginBottom:14,fontSize:13,color:GREEN,fontWeight:700}}>Analisa selesai. Periksa dan edit sebelum digunakan.</div>
-          {[{k:"namaAcara",l:"Nama Acara"},{k:"tanggal",l:"Tanggal",t:"date"},{k:"jam",l:"Jam",t:"time"},{k:"penyelenggara",l:"Penyelenggara"},{k:"kontak",l:"Kontak"},{k:"buktiUndangan",l:"No. Surat"},{k:"lokasi",l:"Lokasi"},{k:"catatan",l:"Catatan"}].map(f=><div key={f.k} style={{marginBottom:9}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:3}}>{f.l}</label><input type={f.t||"text"} value={edited[f.k]||""} onChange={e=>setEdited(p=>({...p,[f.k]:e.target.value}))} style={inp}/></div>)}
-          <div style={{marginBottom:9}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:3}}>Pakaian</label><select value={edited.pakaian||"PDH"} onChange={e=>setEdited(p=>({...p,pakaian:e.target.value}))} style={{...inp,WebkitAppearance:"none"}}>{PAKAIAN.map(x=><option key={x}>{x}</option>)}</select></div>
+          {[{k:"namaAcara",l:"Nama Acara *"},{k:"tanggal",l:"Tanggal *",t:"date"},{k:"jam",l:"Jam *",t:"time"},{k:"penyelenggara",l:"Penyelenggara *"},{k:"kontak",l:"Kontak *"},{k:"buktiUndangan",l:"No. Surat *"},{k:"lokasi",l:"Lokasi *"},{k:"catatan",l:"Catatan"}].map(f=><div key={f.k} style={{marginBottom:9}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:3}}>{f.l}</label><input type={f.t||"text"} value={edited[f.k]||""} onChange={e=>setEdited(p=>({...p,[f.k]:e.target.value}))} style={inp}/></div>)}
+          <div style={{marginBottom:9}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:3}}>Pakaian *</label><select value={edited.pakaian||"PDH"} onChange={e=>setEdited(p=>({...p,pakaian:e.target.value}))} style={{...inp,WebkitAppearance:"none"}}>{PAKAIAN.map(x=><option key={x}>{x}</option>)}</select></div>
+          <div style={{marginBottom:9}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:3}}>Jenis Kegiatan *</label><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{JENIS.map(j=><button key={j} type="button" onClick={()=>setEdited(p=>({...p,jenisKegiatan:j}))} style={{padding:"6px 12px",borderRadius:8,border:"1.5px solid "+(edited.jenisKegiatan===j?NAVY:"#e2e8f0"),background:edited.jenisKegiatan===j?NAVY:"white",color:edited.jenisKegiatan===j?"white":"#64748b",cursor:"pointer",fontSize:12,fontWeight:700}}>{j}</button>)}</div></div>
+          <div style={{marginBottom:9}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:3}}>Upload Berkas Undangan *</label>
+            <input ref={undanganRef} type="file" accept="application/pdf,image/*" onChange={e=>{const f=e.target.files[0];if(f){setUndanganFile(f);setUndanganNama(f.name);}e.target.value="";}} style={{display:"none"}}/>
+            {undanganFile?<div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"#f0fdf4",borderRadius:8,border:"1.5px solid #86efac"}}><span style={{fontSize:11,color:"#15803d",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>✓ {undanganNama}</span><button type="button" onClick={()=>{setUndanganFile(null);setUndanganNama("");}} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:13,fontWeight:700}}>✕</button></div>:<button type="button" onClick={()=>undanganRef.current.click()} style={{width:"100%",padding:"9px",borderRadius:8,border:"2px dashed #c7d2fe",background:"#f8faff",color:NAVY,cursor:"pointer",fontSize:12,fontWeight:600}}>📎 Klik untuk upload berkas undangan</button>}
+          </div>
+          {validErr&&<div style={{padding:"8px 12px",background:"#fee2e2",borderRadius:8,fontSize:12,color:"#991b1b",marginBottom:8}}>{validErr}</div>}
           <div style={{display:"flex",gap:8,marginTop:16}}>
-            <button onClick={()=>{setResult(null);setEdited(null);setErr("");}} style={{flex:1,padding:"11px",borderRadius:9,border:"1.5px solid #e2e8f0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#64748b"}}>Ulangi</button>
-            <button onClick={()=>onFill(edited)} style={{flex:2,padding:"11px",borderRadius:9,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Gunakan Data Ini</button>
+            <button onClick={()=>{setResult(null);setEdited(null);setErr("");setUndanganFile(null);setUndanganNama("");setValidErr("");}} style={{flex:1,padding:"11px",borderRadius:9,border:"1.5px solid #e2e8f0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#64748b"}}>Ulangi</button>
+            <button onClick={()=>{
+              const missing=REQUIRED_FIELDS.filter(k=>!edited[k]||!String(edited[k]).trim());
+              if(missing.length>0){setValidErr("Wajib diisi: "+missing.map(k=>({namaAcara:"Nama Acara",tanggal:"Tanggal",jam:"Jam",penyelenggara:"Penyelenggara",kontak:"Kontak",buktiUndangan:"No. Surat",pakaian:"Pakaian",jenisKegiatan:"Jenis Kegiatan",lokasi:"Lokasi"})[k]).join(", "));return;}
+              if(!undanganFile){setValidErr("Berkas undangan wajib diupload.");return;}
+              setValidErr("");
+              onFill({...edited,_undanganFile:undanganFile,_undanganNama:undanganNama});
+            }} style={{flex:2,padding:"11px",borderRadius:9,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Gunakan Data Ini</button>
           </div>
         </>}
       </div>
@@ -851,7 +884,7 @@ const printF4L=()=>{
         const wwkS=(ev.untukPimpinan.includes("wakilwalikota")||ev.delegasiKeWWK)?(ev.statusWWK==="hadir"?"Hadir":ev.statusWWK==="tidak_hadir"?"Tidak Hadir":"—"):"—";
         const tglCell=iG===0?"<td class='nw' rowspan='"+evs.length+"' style='background:#EBF0FA;font-weight:700;color:#0B2545;vertical-align:middle'><b>"+getHari(tgl)+"</b><br>"+fmt(tgl)+"</td>":"";
         const pkn=ev.pakaian==="Lainnya"?(ev.pakaianLainnya||"Lainnya"):ev.pakaian||"-";
-        return "<tr><td class='c'>"+nomor+"</td>"+tglCell+"<td class='c'><b>"+ev.jam+"</b></td><td><b>"+ev.namaAcara+"</b><br><span style='font-size:7.5pt;color:#64748b'>"+ev.penyelenggara+"</span></td><td>"+ev.lokasi+"</td><td style='font-size:8pt'>"+pkn+"</td><td class='c' style='font-size:8pt'>"+wkS+"</td><td class='c' style='font-size:8pt'>"+wwkS+"</td></tr>";
+        return "<tr><td class='c'>"+nomor+"</td>"+tglCell+"<td class='c'><b>"+ev.jam+"</b></td><td><b>"+ev.namaAcara+"</b><br><span style='font-size:7.5pt;color:#64748b'>"+ev.penyelenggara+"</span></td><td>"+ev.lokasi+"</td><td style='font-size:8pt'>"+pkn+"</td><td class='c' style='font-size:8pt'>"+wkS+"</td><td class='c' style='font-size:8pt'>"+wwkS+"</td><td class='cat'></td></tr>";
       });
     }).join("");
     const w=window.open("","_blank");
@@ -873,7 +906,7 @@ thead th{background:#0B2545;color:#FFFFFF;padding:6px 5px;text-align:left;font-s
 thead th.c{text-align:center}
 tbody td{padding:5px;border-bottom:1px solid #e2e8f0;vertical-align:top;line-height:1.4}
 tbody tr:nth-child(even) td:not(.nw){background:#f8fafc}
-.c{text-align:center}.nw{white-space:nowrap}
+.c{text-align:center}.nw{white-space:nowrap}.cat{min-width:80px;border-left:1px dashed #94a3b8}
 .ttd{margin-top:20px;display:flex;justify-content:space-between;align-items:flex-end}
 .ttd-info{font-size:7.5pt;color:#64748b;line-height:1.8}
 .ttd-info b{color:#1a1a1a;font-size:8pt}
@@ -907,6 +940,7 @@ tbody tr:nth-child(even) td:not(.nw){background:#f8fafc}
     <th class="c" style="width:65px">Pakaian</th>
     <th class="c" style="width:40px">WK</th>
     <th class="c" style="width:40px">WWK</th>
+    <th style="width:80px">Catatan<br>Kepala Daerah</th>
   </tr></thead>
   <tbody>${rows}</tbody>
 </table>
@@ -980,7 +1014,7 @@ function LaporanModal({events,onClose,kabagNama,cetakOleh}){
     const kabag=kabagNama||"Kabag Protokol & Komunikasi Pimpinan";
     const rows=Object.keys(byDay).sort().flatMap(tgl=>byDay[tgl].map((ev,i)=>"<tr>"+(i===0?"<td class='c' rowspan='"+byDay[tgl].length+"' style='background:#EBF0FA;font-weight:700;color:#0B2545'>"+getHari(tgl)+"<br><span style='font-size:7pt'>"+fmtShort(tgl)+"</span></td>":"")+"<td class='c'><strong>"+ev.jam+" WITA</strong></td><td><strong>"+ev.namaAcara+"</strong><br><span style='font-size:7.5pt;color:#64748b'>"+ev.penyelenggara+"</span></td><td class='c "+(ev.jenisKegiatan==="Sambutan"?"u":ev.jenisKegiatan==="Pengarahan"?"b":"g")+"'>"+ev.jenisKegiatan+"</td><td>"+(ev.lokasi||"<em style='color:#cbd5e1'>-</em>")+"</td><td class='c' style='font-size:7pt'>"+ev.pakaian+"</td><td class='c'>"+(ev.untukPimpinan.includes("walikota")?(ev.delegasiKeWWK?"Delegasi":ev.statusWK==="hadir"?"Hadir":ev.statusWK==="tidak_hadir"?"Tdk Hadir":"-"):"-")+"</td><td class='c'>"+(ev.untukPimpinan.includes("wakilwalikota")||ev.delegasiKeWWK?(ev.statusWWK==="hadir"?"Hadir":ev.statusWWK==="tidak_hadir"?"Tdk Hadir":"-"):"-")+"</td></tr>")).join("");
     const statRow="<div style='display:flex;gap:10px;margin:8px 0;flex-wrap:wrap'>"+[["Total",stats.total,"#0B2545"],["Wali Kota",stats.wk,"#1B4080"],["Wakil WK",stats.wwk,"#065f46"],["Sambutan",stats.sambutan,"#7c3aed"],["Pengarahan",stats.pengarahan,"#2563eb"],["Menghadiri",stats.menghadiri,"#16a34a"]].map(([l,v,c])=>"<div style='background:"+c+";color:white;border-radius:8px;padding:6px 12px;font-size:10pt;font-weight:700;text-align:center'><div style='font-size:8pt;font-weight:400;opacity:0.8'>"+l+"</div>"+v+"</div>").join("")+"</div>";
-    w.document.write("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Laporan Kegiatan</title><style>@page{size:A4 landscape;margin:1.5cm 1.8cm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{font-family:Arial,sans-serif;font-size:8.5pt;color:#1a1a1a}.kop{display:flex;align-items:center;gap:14px;border-bottom:3px solid #0B2545;padding-bottom:10px;margin-bottom:8px}.kop img{width:52px;height:52px;object-fit:contain}.kop h1{font-size:12pt;font-weight:900;color:#0B2545;margin:0 0 1px}.kop h2{font-size:9pt;font-weight:700;color:#0B2545;margin:0 0 2px}.kop p{font-size:7.5pt;color:#475569;margin:0}.jdl{text-align:center;margin:8px 0}.jdl h3{font-size:12pt;font-weight:900;color:#0B2545;margin:0;text-transform:uppercase;letter-spacing:1px}.jdl p{font-size:8.5pt;color:#475569;margin:3px 0 0}table{width:100%;border-collapse:collapse;font-size:8pt}thead th{background:#0B2545;color:#FFFFFF;padding:7px 6px;text-align:left;font-size:7.5pt;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}thead th.c{text-align:center}tbody td{padding:6px;border-bottom:1px solid #e2e8f0;vertical-align:middle;line-height:1.4}tbody tr:nth-child(even) td:not(:first-child){background:#f8fafc}.c{text-align:center}.u{color:#7c3aed;font-weight:700}.b{color:#2563eb;font-weight:700}.g{color:#065f46;font-weight:700}.ttd{margin-top:22px;display:flex;justify-content:space-between;align-items:flex-end}.ttd-info{font-size:7.5pt;color:#64748b;line-height:1.8}.ttd-info b{color:#1a1a1a;font-size:8pt}.ttd-box{text-align:center;min-width:240px}.ttd-box .loc-date{font-size:8pt;color:#334155;margin:0 0 4px}.ttd-box .jab{font-size:8.5pt;font-weight:700;color:#0B2545;margin:0 0 56px;line-height:1.4}.ttd-box p{margin:0;border:none;padding:0}.ttd-box .nm{font-size:9pt;font-weight:900;color:#0B2545;margin:0 0 2px;letter-spacing:-0.2px;border:none}.ttd-box .nip{font-size:7.5pt;color:#64748b;display:flex;align-items:center;justify-content:center;gap:4px}.ttd-box .nip-line{display:inline-block;border-bottom:1px solid #94a3b8;width:160px;height:12px}.foot{margin-top:8px;font-size:7pt;color:#94a3b8;text-align:center;border-top:1px solid #e2e8f0;padding-top:5px}</style></head><body><div class='kop'><img src='/logo_tarakan.png' onerror=\"this.style.display='none'\"/><div><h1>PEMERINTAH KOTA TARAKAN</h1><h2>BAGIAN PROTOKOL DAN KOMUNIKASI PIMPINAN</h2><p>Sekretariat Daerah Kota Tarakan</p></div></div><div class='jdl'><h3>LAPORAN KEGIATAN PIMPINAN</h3><p>"+range.label+" &bull; Dicetak: "+printDateTime+"</p></div>"+statRow+"<table><thead><tr><th style='width:80px'>Hari/Tgl</th><th class='c' style='width:52px'>Pukul<br>(WITA)</th><th style='width:200px'>Nama Acara</th><th class='c' style='width:62px'>Jenis</th><th style='width:130px'>Tempat/Lokasi</th><th class='c' style='width:78px'>Pakaian</th><th class='c' style='width:50px'>WK</th><th class='c' style='width:50px'>WWK</th></tr></thead><tbody>"+rows+"</tbody></table><div class='ttd'><div class='ttd-info'><b>Dicetak oleh:</b> "+cetakOleh+"<br><b>Sistem:</b> Bagian Protokol dan Komunikasi Pimpinan Setda Kota Tarakan</div><div class='ttd-box'><p class='loc-date'>Tarakan, "+printDate+"</p><p class='jab'>Kepala Bagian Protokol dan Komunikasi Pimpinan</p><p class='nm'>Anugrah Yega Pranatha, M.Si.</p><p class='nip'>NIP. 198811032007011003</p></div></div><p class='foot'>Sistem Terpadu Jadwal dan Agenda Kegiatan Pimpinan #TarakanHibot</p></body></html>");
+    w.document.write("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Laporan Kegiatan</title><style>@page{size:A4 landscape;margin:1.5cm 1.8cm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{font-family:Arial,sans-serif;font-size:8.5pt;color:#1a1a1a}.kop{display:flex;align-items:center;gap:14px;border-bottom:3px solid #0B2545;padding-bottom:10px;margin-bottom:8px}.kop img{width:52px;height:52px;object-fit:contain}.kop h1{font-size:12pt;font-weight:900;color:#0B2545;margin:0 0 1px}.kop h2{font-size:9pt;font-weight:700;color:#0B2545;margin:0 0 2px}.kop p{font-size:7.5pt;color:#475569;margin:0}.jdl{text-align:center;margin:8px 0}.jdl h3{font-size:12pt;font-weight:900;color:#0B2545;margin:0;text-transform:uppercase;letter-spacing:1px}.jdl p{font-size:8.5pt;color:#475569;margin:3px 0 0}table{width:100%;border-collapse:collapse;font-size:8pt}thead th{background:#0B2545;color:#FFFFFF;padding:7px 6px;text-align:left;font-size:7.5pt;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}thead th.c{text-align:center}tbody td{padding:6px;border-bottom:1px solid #e2e8f0;vertical-align:middle;line-height:1.4}tbody tr:nth-child(even) td:not(:first-child){background:#f8fafc}.c{text-align:center}.cat{min-width:80px;border-left:1px dashed #94a3b8}.u{color:#7c3aed;font-weight:700}.b{color:#2563eb;font-weight:700}.g{color:#065f46;font-weight:700}.ttd{margin-top:22px;display:flex;justify-content:space-between;align-items:flex-end}.ttd-info{font-size:7.5pt;color:#64748b;line-height:1.8}.ttd-info b{color:#1a1a1a;font-size:8pt}.ttd-box{text-align:center;min-width:240px}.ttd-box .loc-date{font-size:8pt;color:#334155;margin:0 0 4px}.ttd-box .jab{font-size:8.5pt;font-weight:700;color:#0B2545;margin:0 0 56px;line-height:1.4}.ttd-box p{margin:0;border:none;padding:0}.ttd-box .nm{font-size:9pt;font-weight:900;color:#0B2545;margin:0 0 2px;letter-spacing:-0.2px;border:none}.ttd-box .nip{font-size:7.5pt;color:#64748b;display:flex;align-items:center;justify-content:center;gap:4px}.ttd-box .nip-line{display:inline-block;border-bottom:1px solid #94a3b8;width:160px;height:12px}.foot{margin-top:8px;font-size:7pt;color:#94a3b8;text-align:center;border-top:1px solid #e2e8f0;padding-top:5px}</style></head><body><div class='kop'><img src='/logo_tarakan.png' onerror=\"this.style.display='none'\"/><div><h1>PEMERINTAH KOTA TARAKAN</h1><h2>BAGIAN PROTOKOL DAN KOMUNIKASI PIMPINAN</h2><p>Sekretariat Daerah Kota Tarakan</p></div></div><div class='jdl'><h3>LAPORAN KEGIATAN PIMPINAN</h3><p>"+range.label+" &bull; Dicetak: "+printDateTime+"</p></div>"+statRow+"<table><thead><tr><th style='width:80px'>Hari/Tgl</th><th class='c' style='width:52px'>Pukul<br>(WITA)</th><th style='width:200px'>Nama Acara</th><th class='c' style='width:62px'>Jenis</th><th style='width:130px'>Tempat/Lokasi</th><th class='c' style='width:78px'>Pakaian</th><th class='c' style='width:50px'>WK</th><th class='c' style='width:50px'>WWK</th></tr></thead><tbody>"+rows+"</tbody></table><div class='ttd'><div class='ttd-info'><b>Dicetak oleh:</b> "+cetakOleh+"<br><b>Sistem:</b> Bagian Protokol dan Komunikasi Pimpinan Setda Kota Tarakan</div><div class='ttd-box'><p class='loc-date'>Tarakan, "+printDate+"</p><p class='jab'>Kepala Bagian Protokol dan Komunikasi Pimpinan</p><p class='nm'>Anugrah Yega Pranatha, M.Si.</p><p class='nip'>NIP. 198811032007011003</p></div></div><p class='foot'>Sistem Terpadu Jadwal dan Agenda Kegiatan Pimpinan #TarakanHibot</p></body></html>");
     w.document.close();w.focus();setTimeout(()=>w.print(),500);
   }
 const printF4L_lap=()=>{
@@ -990,9 +1024,9 @@ const printF4L_lap=()=>{
     const printTime=_now.toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
     const printDateTime=printDate+" pukul "+printTime+" WITA";
     const kabag=kabagNama||"Kabag Protokol & Komunikasi Pimpinan";
-    const rows=Object.keys(byDay).sort().flatMap(tgl=>byDay[tgl].map((ev,i)=>"<tr>"+(i===0?"<td class='c' rowspan='"+byDay[tgl].length+"' style='background:#EBF0FA;font-weight:700;color:#0B2545'>"+getHari(tgl)+"<br><span style='font-size:7pt'>"+fmtShort(tgl)+"</span></td>":"")+"<td class='c'><strong>"+ev.jam+" WITA</strong></td><td><strong>"+ev.namaAcara+"</strong><br><span style='font-size:7.5pt;color:#64748b'>"+ev.penyelenggara+"</span></td><td class='c "+(ev.jenisKegiatan==="Sambutan"?"u":ev.jenisKegiatan==="Pengarahan"?"b":"g")+"'>"+ev.jenisKegiatan+"</td><td>"+(ev.lokasi||"<em style='color:#cbd5e1'>-</em>")+"</td><td class='c' style='font-size:7pt'>"+ev.pakaian+"</td><td class='c'>"+(ev.untukPimpinan.includes("walikota")?(ev.delegasiKeWWK?"Delegasi":ev.statusWK==="hadir"?"Hadir":ev.statusWK==="tidak_hadir"?"Tdk Hadir":"-"):"-")+"</td><td class='c'>"+(ev.untukPimpinan.includes("wakilwalikota")||ev.delegasiKeWWK?(ev.statusWWK==="hadir"?"Hadir":ev.statusWWK==="tidak_hadir"?"Tdk Hadir":"-"):"-")+"</td></tr>")).join("");
+    const rows=Object.keys(byDay).sort().flatMap(tgl=>byDay[tgl].map((ev,i)=>"<tr>"+(i===0?"<td class='c' rowspan='"+byDay[tgl].length+"' style='background:#EBF0FA;font-weight:700;color:#0B2545'>"+getHari(tgl)+"<br><span style='font-size:7pt'>"+fmtShort(tgl)+"</span></td>":"")+"<td class='c'><strong>"+ev.jam+" WITA</strong></td><td><strong>"+ev.namaAcara+"</strong><br><span style='font-size:7.5pt;color:#64748b'>"+ev.penyelenggara+"</span></td><td class='c "+(ev.jenisKegiatan==="Sambutan"?"u":ev.jenisKegiatan==="Pengarahan"?"b":"g")+"'>"+ev.jenisKegiatan+"</td><td>"+(ev.lokasi||"<em style='color:#cbd5e1'>-</em>")+"</td><td class='c' style='font-size:7pt'>"+ev.pakaian+"</td><td class='c'>"+(ev.untukPimpinan.includes("walikota")?(ev.delegasiKeWWK?"Delegasi":ev.statusWK==="hadir"?"Hadir":ev.statusWK==="tidak_hadir"?"Tdk Hadir":"-"):"-")+"</td><td class='c'>"+(ev.untukPimpinan.includes("wakilwalikota")||ev.delegasiKeWWK?(ev.statusWWK==="hadir"?"Hadir":ev.statusWWK==="tidak_hadir"?"Tdk Hadir":"-"):"-")+"</td><td class='cat'></td></tr>")).join("");
     const statRow="<div style='display:flex;gap:10px;margin:8px 0;flex-wrap:wrap'>"+[["Total",stats.total,"#0B2545"],["Wali Kota",stats.wk,"#1B4080"],["Wakil WK",stats.wwk,"#065f46"],["Sambutan",stats.sambutan,"#7c3aed"],["Pengarahan",stats.pengarahan,"#2563eb"],["Menghadiri",stats.menghadiri,"#16a34a"]].map(([l,v,c])=>"<div style='background:"+c+";color:white;border-radius:8px;padding:6px 12px;font-size:10pt;font-weight:700;text-align:center'><div style='font-size:8pt;font-weight:400;opacity:0.8'>"+l+"</div>"+v+"</div>").join("")+"</div>";
-    w.document.write("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Laporan Kegiatan</title><style>@page{size:330mm 210mm;margin:1.5cm 1.8cm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{font-family:Arial,sans-serif;font-size:8.5pt;color:#1a1a1a}.kop{display:flex;align-items:center;gap:14px;border-bottom:3px solid #0B2545;padding-bottom:10px;margin-bottom:8px}.kop img{width:52px;height:52px;object-fit:contain}.kop h1{font-size:12pt;font-weight:900;color:#0B2545;margin:0 0 1px}.kop h2{font-size:9pt;font-weight:700;color:#0B2545;margin:0 0 2px}.kop p{font-size:7.5pt;color:#475569;margin:0}.jdl{text-align:center;margin:8px 0}.jdl h3{font-size:12pt;font-weight:900;color:#0B2545;margin:0;text-transform:uppercase;letter-spacing:1px}.jdl p{font-size:8.5pt;color:#475569;margin:3px 0 0}table{width:100%;border-collapse:collapse;font-size:8pt}thead th{background:#0B2545;color:#FFFFFF;padding:7px 6px;text-align:left;font-size:7.5pt;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}thead th.c{text-align:center}tbody td{padding:6px;border-bottom:1px solid #e2e8f0;vertical-align:middle;line-height:1.4}tbody tr:nth-child(even) td:not(:first-child){background:#f8fafc}.c{text-align:center}.u{color:#7c3aed;font-weight:700}.b{color:#2563eb;font-weight:700}.g{color:#065f46;font-weight:700}.ttd{margin-top:22px;display:flex;justify-content:space-between;align-items:flex-end}.ttd-info{font-size:7.5pt;color:#64748b;line-height:1.8}.ttd-info b{color:#1a1a1a;font-size:8pt}.ttd-box{text-align:center;min-width:240px}.ttd-box .loc-date{font-size:8pt;color:#334155;margin:0 0 4px}.ttd-box .jab{font-size:8.5pt;font-weight:700;color:#0B2545;margin:0 0 56px;line-height:1.4}.ttd-box p{margin:0;border:none;padding:0}.ttd-box .nm{font-size:9pt;font-weight:900;color:#0B2545;margin:0 0 2px;letter-spacing:-0.2px;border:none}.ttd-box .nip{font-size:7.5pt;color:#64748b;display:flex;align-items:center;justify-content:center;gap:4px}.ttd-box .nip-line{display:inline-block;border-bottom:1px solid #94a3b8;width:160px;height:12px}.foot{margin-top:8px;font-size:7pt;color:#94a3b8;text-align:center;border-top:1px solid #e2e8f0;padding-top:5px}</style></head><body><div class='kop'><img src='/logo_tarakan.png' onerror=\"this.style.display='none'\"/><div><h1>PEMERINTAH KOTA TARAKAN</h1><h2>BAGIAN PROTOKOL DAN KOMUNIKASI PIMPINAN</h2><p>Sekretariat Daerah Kota Tarakan</p></div></div><div class='jdl'><h3>LAPORAN KEGIATAN PIMPINAN</h3><p>"+range.label+" &bull; Dicetak: "+printDateTime+"</p></div>"+statRow+"<table><thead><tr><th style='width:80px'>Hari/Tgl</th><th class='c' style='width:52px'>Pukul<br>(WITA)</th><th style='width:200px'>Nama Acara</th><th class='c' style='width:62px'>Jenis</th><th style='width:130px'>Tempat/Lokasi</th><th class='c' style='width:78px'>Pakaian</th><th class='c' style='width:50px'>WK</th><th class='c' style='width:50px'>WWK</th></tr></thead><tbody>"+rows+"</tbody></table><div class='ttd'><div class='ttd-info'><b>Dicetak oleh:</b> "+cetakOleh+"<br><b>Sistem:</b> Bagian Protokol dan Komunikasi Pimpinan Setda Kota Tarakan</div><div class='ttd-box'><p class='loc-date'>Tarakan, "+printDate+"</p><p class='jab'>Kepala Bagian Protokol dan Komunikasi Pimpinan</p><p class='nm'>Anugrah Yega Pranatha, M.Si.</p><p class='nip'>NIP. 198811032007011003</p></div></div><p class='foot'>Sistem Terpadu Jadwal dan Agenda Kegiatan Pimpinan #TarakanHibot</p></body></html>");
+    w.document.write("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Laporan Kegiatan</title><style>@page{size:330mm 210mm;margin:1.5cm 1.8cm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{font-family:Arial,sans-serif;font-size:8.5pt;color:#1a1a1a}.kop{display:flex;align-items:center;gap:14px;border-bottom:3px solid #0B2545;padding-bottom:10px;margin-bottom:8px}.kop img{width:52px;height:52px;object-fit:contain}.kop h1{font-size:12pt;font-weight:900;color:#0B2545;margin:0 0 1px}.kop h2{font-size:9pt;font-weight:700;color:#0B2545;margin:0 0 2px}.kop p{font-size:7.5pt;color:#475569;margin:0}.jdl{text-align:center;margin:8px 0}.jdl h3{font-size:12pt;font-weight:900;color:#0B2545;margin:0;text-transform:uppercase;letter-spacing:1px}.jdl p{font-size:8.5pt;color:#475569;margin:3px 0 0}table{width:100%;border-collapse:collapse;font-size:8pt}thead th{background:#0B2545;color:#FFFFFF;padding:7px 6px;text-align:left;font-size:7.5pt;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}thead th.c{text-align:center}tbody td{padding:6px;border-bottom:1px solid #e2e8f0;vertical-align:middle;line-height:1.4}tbody tr:nth-child(even) td:not(:first-child){background:#f8fafc}.c{text-align:center}.cat{min-width:80px;border-left:1px dashed #94a3b8}.u{color:#7c3aed;font-weight:700}.b{color:#2563eb;font-weight:700}.g{color:#065f46;font-weight:700}.ttd{margin-top:22px;display:flex;justify-content:space-between;align-items:flex-end}.ttd-info{font-size:7.5pt;color:#64748b;line-height:1.8}.ttd-info b{color:#1a1a1a;font-size:8pt}.ttd-box{text-align:center;min-width:240px}.ttd-box .loc-date{font-size:8pt;color:#334155;margin:0 0 4px}.ttd-box .jab{font-size:8.5pt;font-weight:700;color:#0B2545;margin:0 0 56px;line-height:1.4}.ttd-box p{margin:0;border:none;padding:0}.ttd-box .nm{font-size:9pt;font-weight:900;color:#0B2545;margin:0 0 2px;letter-spacing:-0.2px;border:none}.ttd-box .nip{font-size:7.5pt;color:#64748b;display:flex;align-items:center;justify-content:center;gap:4px}.ttd-box .nip-line{display:inline-block;border-bottom:1px solid #94a3b8;width:160px;height:12px}.foot{margin-top:8px;font-size:7pt;color:#94a3b8;text-align:center;border-top:1px solid #e2e8f0;padding-top:5px}</style></head><body><div class='kop'><img src='/logo_tarakan.png' onerror=\"this.style.display='none'\"/><div><h1>PEMERINTAH KOTA TARAKAN</h1><h2>BAGIAN PROTOKOL DAN KOMUNIKASI PIMPINAN</h2><p>Sekretariat Daerah Kota Tarakan</p></div></div><div class='jdl'><h3>LAPORAN KEGIATAN PIMPINAN</h3><p>"+range.label+" &bull; Dicetak: "+printDateTime+"</p></div>"+statRow+"<table><thead><tr><th style='width:80px'>Hari/Tgl</th><th class='c' style='width:52px'>Pukul<br>(WITA)</th><th style='width:200px'>Nama Acara</th><th class='c' style='width:62px'>Jenis</th><th style='width:130px'>Tempat/Lokasi</th><th class='c' style='width:78px'>Pakaian</th><th class='c' style='width:50px'>WK</th><th class='c' style='width:50px'>WWK</th><th style='width:80px'>Catatan<br>Kepala Daerah</th></tr></thead><tbody>"+rows+"</tbody></table><div class='ttd'><div class='ttd-info'><b>Dicetak oleh:</b> "+cetakOleh+"<br><b>Sistem:</b> Bagian Protokol dan Komunikasi Pimpinan Setda Kota Tarakan</div><div class='ttd-box'><p class='loc-date'>Tarakan, "+printDate+"</p><p class='jab'>Kepala Bagian Protokol dan Komunikasi Pimpinan</p><p class='nm'>Anugrah Yega Pranatha, M.Si.</p><p class='nip'>NIP. 198811032007011003</p></div></div><p class='foot'>Sistem Terpadu Jadwal dan Agenda Kegiatan Pimpinan #TarakanHibot</p></body></html>");
     w.document.close();w.focus();setTimeout(()=>w.print(),500);
   }
 ;
@@ -1395,7 +1429,7 @@ function ImportUsersTab({users,save,showT}){
   const[preview,setPreview]=React.useState([]);
   const[loading,setLoading]=React.useState(false);
   const[done,setDone]=React.useState(false);
-  const ROLES=["staf","staf_input","kasubbag_protokol","kasubbag_komdokpim","kabag","ajudan_walikota","ajudan_wakilwalikota","timkom","walikota","wakilwalikota"];
+  const ROLES=["staf","staf_input","admin_rk","kasubbag_protokol","kasubbag_komdokpim","kabag","ajudan_walikota","ajudan_wakilwalikota","timkom","walikota","wakilwalikota"];
   const parseCSV=(text)=>{
     const lines=text.trim().split('\n').filter(Boolean);
     if(lines.length<2)return[];
@@ -1463,15 +1497,30 @@ function ImportUsersTab({users,save,showT}){
 // ==================== ADMIN MODAL ====================
 function AdminModal({onClose,showT}){
   const[users,setUsers]=useState(loadUsers);const[tabA,setTabA]=useState("users");const[pendRegs,setPendRegs]=React.useState(()=>loadPendingRegs());
+  // Fungsi refresh: gabung localStorage + Supabase
+  const refreshPendRegs=async()=>{
+    const local=loadPendingRegs();
+    const remote=await dbLoadPendingRegs();
+    if(remote){
+      // Gabung: tambah entry dari remote yang belum ada di local
+      const merged=[...local];
+      remote.forEach(r=>{if(!merged.find(x=>x.id===r.id))merged.push(r);});
+      // Update localStorage dengan data terbaru
+      savePendingRegs(merged);
+      setPendRegs(merged);
+    } else {
+      setPendRegs(local);
+    }
+  };
   // Refresh pendRegs setiap kali tab pendaftaran dibuka
   React.useEffect(()=>{
-    setPendRegs(loadPendingRegs());
-    const iv=setInterval(()=>setPendRegs(loadPendingRegs()),5000);
-    const onStorage=()=>setPendRegs(loadPendingRegs());
+    refreshPendRegs();
+    const iv=setInterval(()=>refreshPendRegs(),5000);
+    const onStorage=()=>refreshPendRegs();
     window.addEventListener("storage",onStorage);
     return ()=>{clearInterval(iv);window.removeEventListener("storage",onStorage);};
   },[]);
-  React.useEffect(()=>{if(tabA==="pendaftaran")setPendRegs(loadPendingRegs());},[tabA]);const[editUser,setEditUser]=useState(null);const[newUser,setNewUser]=useState({username:"",password:"",nama:"",jabatan:"",role:"staf",noWA:""});const[err,setErr]=useState("");
+  React.useEffect(()=>{if(tabA==="pendaftaran")refreshPendRegs();},[tabA]);const[editUser,setEditUser]=useState(null);const[newUser,setNewUser]=useState({username:"",password:"",nama:"",jabatan:"",role:"staf",noWA:""});const[err,setErr]=useState("");
   const save=u=>{setUsers(u);saveUsers(u);};
   const doAdd=async()=>{
     setErr("");
@@ -1544,12 +1593,13 @@ function AdminModal({onClose,showT}){
                 <button onClick={()=>{
                   const regs=loadPendingRegs().filter(x=>x.id!==r.id);
                   savePendingRegs(regs);setPendRegs(regs);
+                  dbDeletePendingReg(r.id).catch(()=>{});
                   const newU={username:r.username,password:r.password,nama:r.nama,jabatan:r.jabatan,role:r.role,noWA:r.noWA||""};
                   const all=loadUsers();saveUsers([...all,newU]);setUsers([...all,newU]);
                   dbUpsertUser(newU).catch(()=>{});
                   showT("Akun "+r.username+" diaktifkan ✓");
                 }} style={{padding:"6px 12px",borderRadius:8,border:"none",background:"#10b981",color:"white",cursor:"pointer",fontSize:11,fontWeight:700}}>✓ Setujui</button>
-                <button onClick={()=>{const regs=loadPendingRegs().filter(x=>x.id!==r.id);savePendingRegs(regs);setPendRegs(regs);showT("Permohonan ditolak","warn");}} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid #fca5a5",background:"white",color:"#ef4444",cursor:"pointer",fontSize:11,fontWeight:700}}>✕ Tolak</button>
+                <button onClick={()=>{const regs=loadPendingRegs().filter(x=>x.id!==r.id);savePendingRegs(regs);setPendRegs(regs);dbDeletePendingReg(r.id).catch(()=>{});showT("Permohonan ditolak","warn");}} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid #fca5a5",background:"white",color:"#ef4444",cursor:"pointer",fontSize:11,fontWeight:700}}>✕ Tolak</button>
               </div>
             </div>
           </div>)
@@ -1738,9 +1788,11 @@ function EvaluasiModal({ev, onClose, onSave, currentUser}){
 function PenugasanModal({ev, onClose, onSave, currentUser, allUsers, allEvents}){
   const NAVY="#0A1628",GOLD="#C9A84C",GREEN="#0D6B4F";
 
-  // Hanya staf, staf_input, kasubbag_protokol, timkom yang bisa ditugaskan
+  // Hanya staf, staf_input, kasubbag, timkom yang bisa ditugaskan
   const eligibleForAssigner=ASSIGN_ROLES[currentUser.role]||["staf","staf_input","timkom"];
-  const candidates=allUsers.filter(u=>eligibleForAssigner.includes(u.role));
+  // Kasubbag bisa menugaskan diri sendiri juga
+  const isKasubbag=["kasubbag_protokol","kasubbag_komdokpim"].includes(currentUser.role);
+  const candidates=allUsers.filter(u=>eligibleForAssigner.includes(u.role)||(isKasubbag&&u.username===currentUser.username));
 
   const[selected,setSelected]=React.useState(ev.personil||[]);
   const[catatan,setCatatan]=React.useState(ev.catatanPenugasan||"");
@@ -2566,15 +2618,15 @@ export default function App(){
     setForm(emptyForm);setTab("jadwal");
   };
 
-  const TH={walikota:{g:"linear-gradient(135deg,"+NAVY+",#1B4080)",a:GOLD},wakilwalikota:{g:"linear-gradient(135deg,#053f2a,#065f46)",a:"#6ee7b7"},ajudan:{g:"linear-gradient(135deg,#1e293b,#334155)",a:"#94a3b8"},timkom:{g:"linear-gradient(135deg,#3730a3,#4f46e5)",a:"#a5b4fc"},staf:{g:"linear-gradient(135deg,"+NAVY+",#1B4080)",a:GOLD},staf_input:{g:"linear-gradient(135deg,#1e3a5f,#2563eb)",a:"#93c5fd"},kasubbag_protokol:{g:"linear-gradient(135deg,#78350f,#d97706)",a:"#fde68a"},kasubbag_komdokpim:{g:"linear-gradient(135deg,#1e3a5f,#0284c7)",a:"#7dd3fc"},kabag:{g:"linear-gradient(135deg,#064e3b,#10b981)",a:"#6ee7b7"}};
+  const TH={walikota:{g:"linear-gradient(135deg,"+NAVY+",#1B4080)",a:GOLD},wakilwalikota:{g:"linear-gradient(135deg,#053f2a,#065f46)",a:"#6ee7b7"},ajudan:{g:"linear-gradient(135deg,#1e293b,#334155)",a:"#94a3b8"},timkom:{g:"linear-gradient(135deg,#3730a3,#4f46e5)",a:"#a5b4fc"},staf:{g:"linear-gradient(135deg,"+NAVY+",#1B4080)",a:GOLD},staf_input:{g:"linear-gradient(135deg,#1e3a5f,#2563eb)",a:"#93c5fd"},admin_rk:{g:"linear-gradient(135deg,#7c2d12,#c2410c)",a:"#fdba74"},kasubbag_protokol:{g:"linear-gradient(135deg,#78350f,#d97706)",a:"#fde68a"},kasubbag_komdokpim:{g:"linear-gradient(135deg,#1e3a5f,#0284c7)",a:"#7dd3fc"},kabag:{g:"linear-gradient(135deg,#064e3b,#10b981)",a:"#6ee7b7"}};
   const th=TH[role]||TH.staf;
   const roleInfo=ALL_ROLE_DEFS.find(r=>r.key===role)||{icon:"circle",label:"",key:""};
   const kabagNama=loadUsers().find(u=>u.role==="kabag")?.nama||"Kabag Protokol & Komunikasi Pimpinan";
   const canReport=ROLES_WITH_REPORT.includes(role);
-  const isStafAny=STAF_ROLES.includes(role)||role==="staf_input";
+  const isStafAny=STAF_ROLES.includes(role)||role==="staf_input"||role==="admin_rk";
   const isKasubbagAny=KASUBBAG_ROLES.includes(role);
   const listEvents=getVisible();
-  const showForm=tab==="form"&&(role==="staf"||role==="staf_input");
+  const showForm=tab==="form"&&(role==="staf"||role==="staf_input"||role==="admin_rk");
   const showPenugasan=tab==="penugasan";
 
   const CSS=`
@@ -2896,9 +2948,10 @@ export default function App(){
   // ==================== SIDEBAR ====================
   const navGroups=[
     {label:"MENU UTAMA",items:[
-      ...((role==="staf"||role==="staf_input")?[{key:"draft",icon:"📝",label:"Draft & Progress"},{key:"jadwal",icon:"📅",label:"Jadwal Disetujui"},{key:"form",icon:"✏️",label:"Input Jadwal Baru"}]:[]),
-      ...(KASUBBAG_ROLES.includes(role)||role==="kabag"?[{key:"jadwal",icon:"📋",label:"Antrian Approval"},{key:"semua",icon:"🗓️",label:"Semua Jadwal"}]:[]),
-      ...((role==="ajudan_walikota"||role==="ajudan_wakilwalikota")?[{key:"ajudan",icon:"✅",label:"Dashboard Ajudan"},{key:"jadwal",icon:"📅",label:"Semua Jadwal"}]:[]),
+      ...((role==="staf"||role==="staf_input")?[{key:"draft",icon:"📝",label:"Draft & Progress"},{key:"jadwal",icon:"📅",label:"Jadwal Disetujui"},{key:"penugasan",icon:"🎯",label:"Penugasan Saya"},{key:"form",icon:"✏️",label:"Input Jadwal Baru"}]:[]),
+      ...(role==="admin_rk"?[{key:"draft",icon:"📝",label:"Draft & Progress"},{key:"jadwal",icon:"📅",label:"Jadwal Disetujui"},{key:"penugasan",icon:"🎯",label:"Penugasan Saya"},{key:"form",icon:"✏️",label:"Input Jadwal Baru"},{key:"rk",icon:"📋",label:"Rencana Kegiatan (RK)"}]:[]),
+      ...(KASUBBAG_ROLES.includes(role)||role==="kabag"?[{key:"jadwal",icon:"📋",label:"Antrian Approval"},{key:"semua",icon:"🗓️",label:"Semua Jadwal"},{key:"penugasan",icon:"🎯",label:"Semua Penugasan"}]:[]),
+      ...((role==="ajudan_walikota"||role==="ajudan_wakilwalikota")?[{key:"ajudan",icon:"✅",label:"Dashboard Ajudan"},{key:"jadwal",icon:"📅",label:"Semua Jadwal"},{key:"penugasan",icon:"🎯",label:"Semua Penugasan"}]:[]),
       ...(role==="timkom"?[{key:"jadwal",icon:"📅",label:"Jadwal Saya"},{key:"penugasan",icon:"🎯",label:"Penugasan Saya"}]:[]),
       ...(role==="walikota"||role==="wakilwalikota"?[{key:"jadwal",icon:"📅",label:"Jadwal Saya"}]:[]),
       {key:"tayang",icon:"🏛️",label:"Agenda Tayang"},
@@ -2950,9 +3003,10 @@ export default function App(){
 
   // ==================== MOBILE HEADER + iOS BOTTOM TAB BAR ====================
   const mobTabs=[
-    ...((role==="staf"||role==="staf_input")?[{key:"draft",label:"Draft",icon:"📝"},{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"form",label:"Input",icon:"✏️"}]:[]),
-    ...(KASUBBAG_ROLES.includes(role)||role==="kabag"?[{key:"jadwal",label:"Antrian",icon:"📋"},{key:"semua",label:"Semua",icon:"🗓️"}]:[]),
-    ...((role==="ajudan_walikota"||role==="ajudan_wakilwalikota")?[{key:"ajudan",label:"Dashboard",icon:"✅"},{key:"jadwal",label:"Jadwal",icon:"📅"}]:[]),
+    ...((role==="staf"||role==="staf_input")?[{key:"draft",label:"Draft",icon:"📝"},{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"penugasan",label:"Tugas",icon:"🎯"},{key:"form",label:"Input",icon:"✏️"}]:[]),
+    ...(role==="admin_rk"?[{key:"draft",label:"Draft",icon:"📝"},{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"penugasan",label:"Tugas",icon:"🎯"},{key:"form",label:"Input",icon:"✏️"},{key:"rk",label:"RK",icon:"📋"}]:[]),
+    ...(KASUBBAG_ROLES.includes(role)||role==="kabag"?[{key:"jadwal",label:"Antrian",icon:"📋"},{key:"semua",label:"Semua",icon:"🗓️"},{key:"penugasan",label:"Penugasan",icon:"🎯"}]:[]),
+    ...((role==="ajudan_walikota"||role==="ajudan_wakilwalikota")?[{key:"ajudan",label:"Dashboard",icon:"✅"},{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"penugasan",label:"Penugasan",icon:"🎯"}]:[]),
     ...(role==="timkom"?[{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"penugasan",label:"Tugas",icon:"🎯"}]:[]),
     ...(role==="walikota"||role==="wakilwalikota"?[{key:"jadwal",label:"Jadwal",icon:"📅"}]:[]),
     {key:"tayang",label:"Tayang",icon:"🏛️"},
@@ -3023,13 +3077,135 @@ export default function App(){
 
   
 // ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// RENCANA KEGIATAN (RK) VIEW — hanya untuk admin_rk
+// ═══════════════════════════════════════════════════════
+function RKView({events,user,upd,updAndSync,showT,isMobile}){
+  const NAVY="0A1628";const _NAVY="#0A1628";
+  const[rkList,setRkList]=useState(()=>{try{return JSON.parse(localStorage.getItem("prokopim_rk")||"[]");}catch{return[];}});
+  const[showForm,setShowForm]=useState(false);
+  const[form,setForm]=useState({judul:"",perihal:"",tanggalMulai:"",tanggalSelesai:"",uraian:"",catatan:""});
+  const[showAI,setShowAI]=useState(false);
+  const saveRk=(list)=>{localStorage.setItem("prokopim_rk",JSON.stringify(list));setRkList(list);};
+  const submitRk=()=>{
+    if(!form.judul||!form.tanggalMulai)return showT("Judul dan tanggal mulai wajib diisi","error");
+    const item={...form,id:Date.now(),dibuat:new Date().toISOString(),dibuatOleh:user.username,dibuatOlehNama:user.nama};
+    saveRk([item,...rkList]);
+    setForm({judul:"",perihal:"",tanggalMulai:"",tanggalSelesai:"",uraian:"",catatan:""});
+    setShowForm(false);showT("Rencana Kegiatan berhasil disimpan ✓");
+  };
+  const hapusRk=(id)=>saveRk(rkList.filter(r=>r.id!==id));
+  const inp={width:"100%",padding:"9px 11px",borderRadius:8,border:"1.5px solid #e2e8f0",fontSize:13,boxSizing:"border-box"};
+  return <div style={{padding:isMobile?"12px":"20px"}}>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:8}}>
+      <div><div style={{fontSize:16,fontWeight:700,color:_NAVY}}>📋 Rencana Kegiatan (RK)</div><div style={{fontSize:12,color:"#64748b",marginTop:2}}>{rkList.length} entri tersimpan</div></div>
+      <div style={{display:"flex",gap:8}}><button onClick={()=>setShowAI(true)} style={{padding:"9px 14px",borderRadius:9,border:"1.5px solid #6366f1",background:"white",color:"#6366f1",cursor:"pointer",fontSize:12,fontWeight:700}}>✨ Input dengan AI</button><button onClick={()=>setShowForm(true)} style={{padding:"9px 14px",borderRadius:9,border:"none",background:_NAVY,color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>+ Input Manual</button></div>
+    </div>
+    {showForm&&<div style={{background:"white",borderRadius:12,border:"1.5px solid #e2e8f0",padding:16,marginBottom:16}}>
+      <div style={{fontWeight:700,color:_NAVY,marginBottom:12}}>Input Rencana Kegiatan Baru</div>
+      {[{k:"judul",l:"Judul RK *"},{k:"perihal",l:"Perihal"},{k:"uraian",l:"Uraian Kegiatan"},{k:"catatan",l:"Catatan"}].map(f=><div key={f.k} style={{marginBottom:10}}>
+        <label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:3}}>{f.l}</label>
+        <input value={form[f.k]||""} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} style={inp}/>
+      </div>)}
+      <div style={{display:"flex",gap:8,marginBottom:10}}>
+        <div style={{flex:1}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:3}}>Tanggal Mulai *</label><input type="date" value={form.tanggalMulai} onChange={e=>setForm(p=>({...p,tanggalMulai:e.target.value}))} style={inp}/></div>
+        <div style={{flex:1}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:3}}>Tanggal Selesai</label><input type="date" value={form.tanggalSelesai} onChange={e=>setForm(p=>({...p,tanggalSelesai:e.target.value}))} style={inp}/></div>
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        <button onClick={()=>setShowForm(false)} style={{flex:1,padding:"10px",borderRadius:9,border:"1.5px solid #e2e8f0",background:"white",color:"#64748b",cursor:"pointer",fontSize:13,fontWeight:600}}>Batal</button>
+        <button onClick={submitRk} style={{flex:2,padding:"10px",borderRadius:9,border:"none",background:_NAVY,color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Simpan RK</button>
+      </div>
+    </div>}
+    {rkList.length===0&&!showForm?<div style={{textAlign:"center",padding:"40px 20px",background:"white",borderRadius:12,border:"1.5px solid #e2e8f0",color:"#94a3b8"}}>
+      <div style={{fontSize:36,marginBottom:8}}>📋</div><div style={{fontWeight:700}}>Belum ada rencana kegiatan</div>
+      <div style={{fontSize:12,marginTop:4}}>Gunakan tombol Input Manual atau Input AI untuk menambahkan RK</div>
+    </div>:rkList.map(r=><div key={r.id} style={{background:"white",borderRadius:12,border:"1.5px solid #e2e8f0",padding:"12px 16px",marginBottom:10}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+        <div style={{flex:1}}>
+          <div style={{fontWeight:700,color:_NAVY,fontSize:14}}>{r.judul}</div>
+          {r.perihal&&<div style={{fontSize:12,color:"#475569",marginTop:2}}>{r.perihal}</div>}
+          <div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>{r.tanggalMulai}{r.tanggalSelesai&&" s.d. "+r.tanggalSelesai} · Oleh: {r.dibuatOlehNama}</div>
+          {r.uraian&&<div style={{fontSize:12,color:"#334155",marginTop:6,padding:"6px 8px",background:"#f8fafc",borderRadius:6}}>{r.uraian}</div>}
+          {r.catatan&&<div style={{fontSize:11,color:"#64748b",marginTop:4,fontStyle:"italic"}}>{r.catatan}</div>}
+        </div>
+        <button onClick={()=>hapusRk(r.id)} style={{flexShrink:0,padding:"6px 10px",borderRadius:8,border:"1.5px solid #fca5a5",background:"white",color:"#ef4444",cursor:"pointer",fontSize:11,fontWeight:700}}>✕</button>
+      </div>
+    </div>)}
+    {showAI&&<AIModalRK onFill={d=>{setForm(p=>({...p,...d}));setShowForm(true);setShowAI(false);showT("Data terisi dari AI ✓","warn");}} onClose={()=>setShowAI(false)}/>}
+  </div>;
+}
+
+// AIModal khusus RK — upload langsung tersimpan
+function AIModalRK({onFill,onClose}){
+  const ref=useRef();const[drag,setDrag]=useState(false);const[loading,setLoading]=useState(false);const[edited,setEdited]=useState(null);const[err,setErr]=useState("");const[savedFile,setSavedFile]=useState(null);
+  const analyze=async f=>{
+    setLoading(true);setErr("");
+    try{
+      let b64,mimeType;
+      if(f.type==="application/pdf"){b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(f);});mimeType="application/pdf";}
+      else{const img=new Image();const url=URL.createObjectURL(f);b64=await new Promise(res=>{img.onload=()=>{URL.revokeObjectURL(url);const c=document.createElement("canvas");let w=img.width,h=img.height;if(w>1024||h>1024){if(w>h){h=Math.round(h*1024/w);w=1024;}else{w=Math.round(w*1024/h);h=1024;}}c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);res(c.toDataURL("image/jpeg",0.75).split(",")[1]);};img.onerror=()=>{const r=new FileReader();r.onload=e=>res(e.target.result.split(",")[1]);r.readAsDataURL(f);};img.src=url;});mimeType="image/jpeg";}
+      const PROMPT='Baca dokumen ini dan balas HANYA JSON: {"judul":"","perihal":"","tanggalMulai":"YYYY-MM-DD","tanggalSelesai":"YYYY-MM-DD","uraian":"","catatan":""}';
+      const resp=await fetch("/api/ai",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:[{type:f.type==="application/pdf"?"document":"image",source:{type:"base64",media_type:mimeType,data:b64}},{type:"text",text:PROMPT}]}]})});
+      const data=await resp.json().catch(()=>null);
+      if(!resp.ok)throw new Error(data?.error||"Server error");
+      const txt=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("").replace(/```(?:json)?\s*/gi,"").replace(/```/g,"").trim();
+      const m=txt.match(/{[\s\S]*}/);
+      if(!m)throw new Error("AI tidak mengembalikan JSON");
+      setEdited(JSON.parse(m[0]));
+      // Simpan file otomatis ke storage
+      try{
+        let url;
+        if(SUPA_OK){url=await storageUpload("undangan",f,f.name);}
+        else{url=await new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsDataURL(f);});}
+        setSavedFile({url,nama:f.name});
+      }catch(e2){console.warn("Gagal simpan file:",e2);}
+    }catch(e){setErr(e.message);}
+    setLoading(false);
+  };
+  const inp={width:"100%",padding:"9px 11px",borderRadius:8,border:"1.5px solid #e2e8f0",fontSize:13};
+  return <div style={{position:"fixed",inset:0,zIndex:8200,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+    <div style={{background:"white",borderRadius:16,width:"100%",maxWidth:500,maxHeight:"90vh",display:"flex",flexDirection:"column"}}>
+      <div style={{padding:"16px 20px 12px",borderBottom:"1px solid #f1f5f9",display:"flex",alignItems:"center",gap:10}}>
+        <div style={{flex:1}}><div style={{fontSize:16,fontWeight:700,color:"#0A1628"}}>✨ Input RK dengan AI</div><div style={{fontSize:12,color:"#64748b"}}>Upload dokumen — data & file tersimpan otomatis</div></div>
+        <button onClick={onClose} style={{background:"#f1f5f9",border:"none",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontSize:13,fontWeight:700,color:"#64748b"}}>Tutup</button>
+      </div>
+      <div style={{flex:1,overflowY:"auto",padding:"16px 20px 20px"}}>
+        {!edited&&!loading&&<>
+          <input ref={ref} type="file" accept="application/pdf,image/*" onChange={e=>{if(e.target.files[0])analyze(e.target.files[0]);e.target.value="";}} style={{display:"none"}}/>
+          <div onClick={()=>ref.current.click()} onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);if(e.dataTransfer.files[0])analyze(e.dataTransfer.files[0]);}} style={{border:"2px dashed "+(drag?"#6366f1":"#c7d2fe"),borderRadius:12,padding:"36px 20px",textAlign:"center",cursor:"pointer",background:drag?"#eef2ff":"#f8faff"}}>
+            <div style={{fontSize:36,marginBottom:10}}>📄</div>
+            <div style={{fontSize:15,fontWeight:700,color:"#0A1628",marginBottom:4}}>Upload Dokumen RK</div>
+            <div style={{fontSize:13,color:"#64748b"}}>PDF, JPG, atau PNG • File otomatis tersimpan ke sistem</div>
+          </div>
+          {err&&<div style={{marginTop:12,padding:"10px 12px",background:"#fee2e2",borderRadius:8,fontSize:13,color:"#991b1b"}}>{err}</div>}
+        </>}
+        {loading&&<div style={{textAlign:"center",padding:"40px 20px"}}><div style={{width:48,height:48,border:"4px solid #e0e7ff",borderTopColor:"#6366f1",borderRadius:"50%",animation:"spin 0.9s linear infinite",margin:"0 auto 16px"}}/><div style={{fontSize:14,fontWeight:700,color:"#0A1628"}}>AI menganalisa dokumen...</div><style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style></div>}
+        {edited&&<>
+          <div style={{background:"#d1fae5",borderRadius:9,padding:"9px 12px",marginBottom:12,fontSize:13,color:"#065f46",fontWeight:700}}>✓ Analisa selesai{savedFile?" — file tersimpan: "+savedFile.nama:""}. Edit jika perlu.</div>
+          {[{k:"judul",l:"Judul RK"},{k:"perihal",l:"Perihal"},{k:"uraian",l:"Uraian"},{k:"catatan",l:"Catatan"}].map(f=><div key={f.k} style={{marginBottom:9}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:3}}>{f.l}</label><input value={edited[f.k]||""} onChange={e=>setEdited(p=>({...p,[f.k]:e.target.value}))} style={inp}/></div>)}
+          <div style={{display:"flex",gap:8,marginBottom:10}}>
+            <div style={{flex:1}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:3}}>Tanggal Mulai</label><input type="date" value={edited.tanggalMulai||""} onChange={e=>setEdited(p=>({...p,tanggalMulai:e.target.value}))} style={inp}/></div>
+            <div style={{flex:1}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:3}}>Tanggal Selesai</label><input type="date" value={edited.tanggalSelesai||""} onChange={e=>setEdited(p=>({...p,tanggalSelesai:e.target.value}))} style={inp}/></div>
+          </div>
+          <div style={{display:"flex",gap:8,marginTop:16}}>
+            <button onClick={()=>setEdited(null)} style={{flex:1,padding:"11px",borderRadius:9,border:"1.5px solid #e2e8f0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#64748b"}}>Ulangi</button>
+            <button onClick={()=>onFill(edited)} style={{flex:2,padding:"11px",borderRadius:9,border:"none",background:"#0A1628",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Gunakan Data Ini</button>
+          </div>
+        </>}
+      </div>
+    </div>
+  </div>;
+}
+
 // PENUGASAN SAYA VIEW
 // ═══════════════════════════════════════════════════════
 function PenugasanSayaView({events, user, onOpenEvaluasi, isMobile}){
   const NAVY="#0A1628",GOLD="#C9A84C";
-  const myEvents=events.filter(e=>e.alur==="disetujui"&&(e.personil||[]).includes(user.username))
-    .sort((a,b)=>(a.tanggal+a.jam).localeCompare(b.tanggal+b.jam));
-  const allApproved=events.filter(e=>e.alur==="disetujui").sort((a,b)=>(a.tanggal+a.jam).localeCompare(b.tanggal+b.jam));
+  const canSeeAll=["kabag","ajudan_walikota","ajudan_wakilwalikota","kasubbag_protokol","kasubbag_komdokpim"].includes(user.role);
+  const approved=events.filter(e=>e.alur==="disetujui").sort((a,b)=>(a.tanggal+a.jam).localeCompare(b.tanggal+b.jam));
+  // Untuk kabag/ajudan/kasubbag: semua jadwal disetujui; untuk staf: hanya yang ditugaskan ke mereka
+  const myEvents=canSeeAll?approved:approved.filter(e=>(e.personil||[]).includes(user.username));
+  const allApproved=approved;
 
   const now=new Date();
   const fmt=t=>{const d=new Date(t);return d.toLocaleDateString("id-ID",{weekday:"short",day:"numeric",month:"short",year:"numeric"});};
@@ -3834,8 +4010,8 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
       {ev.catatanPimpinan&&<div style={{background:"linear-gradient(90deg,#EEF2FF,#F5F3FF)",padding:"6px 14px",fontSize:11,color:"#4338CA",fontWeight:600,borderBottom:"1px solid #E0E7FF",display:"flex",alignItems:"center",gap:5}}>
         <span style={{fontSize:12}}>💬</span>{ev.catatanPimpinan}
       </div>}
-      {/* Banner penugasan — hanya terlihat ajudan, kasubbag_protokol, timkom, staf, staf_input */}
-      {["kabag","ajudan_walikota","ajudan_wakilwalikota","kasubbag_protokol","timkom","staf","staf_input"].includes(role)&&ev.alur==="disetujui"&&(()=>{
+      {/* Banner penugasan — semua role yang terlibat penugasan */}
+      {["kabag","ajudan_walikota","ajudan_wakilwalikota","kasubbag_protokol","kasubbag_komdokpim","timkom","staf","staf_input","admin_rk"].includes(role)&&ev.alur==="disetujui"&&(()=>{
         const all=loadUsers();
         const personilList=(ev.personil||[]).map(un=>all.find(u=>u.username===un)?.nama||un);
         const isAssigned=(ev.personil||[]).includes(user.username);
@@ -4081,7 +4257,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
   }
 
   // ==================== MAIN CONTENT ====================
-  const pageTitle=tab==="tayang"?"Agenda Kegiatan Pimpinan":tab==="form"?"Input Jadwal Baru":tab==="semua"?"Semua Jadwal":tab==="penugasan"?"Penugasan Saya":tab==="jadwal"?KASUBBAG_ROLES.includes(role)||role==="kabag"?"Antrian Approval":role==="staf"||role==="staf_input"?"Jadwal Saya":"Jadwal Saya":"Jadwal";
+  const pageTitle=tab==="tayang"?"Agenda Kegiatan Pimpinan":tab==="form"?"Input Jadwal Baru":tab==="semua"?"Semua Jadwal":tab==="penugasan"?"Penugasan Saya":tab==="jadwal"?KASUBBAG_ROLES.includes(role)||role==="kabag"?"Antrian Approval":role==="staf"||role==="staf_input"||role==="admin_rk"?"Jadwal Saya":"Jadwal Saya":"Jadwal";
 
   const mainContentJSX=(<div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",background:"#F0F4FA",overflow:"hidden"}}>
     {/* ── Desktop top bar ── */}
@@ -4136,14 +4312,16 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
         ?<AjudanDashboard events={events} user={user} upd={upd} showT={showT} setDelegTarget={setDelegTarget} isMobile={isMobile}/>
         :tab==="jadwal"&&tab!=="tayang"&&tab!=="semua"
         ?<PimpinanView events={events} role={role} user={user} upd={upd} showT={showT} isMobile={isMobile} setDelegTarget={setDelegTarget}/>
-        :((role==="staf"||role==="staf_input")&&tab==="draft")
+        :((role==="staf"||role==="staf_input"||role==="admin_rk")&&tab==="draft")
         ?<DraftProgressView events={events} user={user} upd={upd} showT={showT} askConfirm={askConfirm} setTab={setTab} isMobile={isMobile}/>
         :(["kasubbag_protokol","kasubbag_komdokpim"].includes(role)&&tab==="jadwal")
         ?<ApprovalQueueView events={events} role={role} upd={upd} showT={showT} askConfirm={askConfirm} isMobile={isMobile}/>
         :(role==="kabag"&&tab==="jadwal")
         ?<ApprovalQueueView events={events} role={role} upd={upd} showT={showT} askConfirm={askConfirm} isMobile={isMobile}/>
-        :showForm
+        :showForm&&tab!=="rk"
         ?<FormView form={form} setForm={setForm} editId={editId} setEditId={setEditId} setTab={setTab} isMobile={isMobile} onSubmit={submit} onCancel={()=>{setForm(emptyForm);setEditId(null);setTab("jadwal");}} onOpenAI={()=>setShowAI(true)} onUndanganUpload={handleUndanganUpload} showT={showT}/>
+        :(role==="admin_rk"&&tab==="rk")
+        ?<RKView events={events} user={user} upd={upd} updAndSync={updAndSync} showT={showT} isMobile={isMobile}/>
         :listEvents.length===0
           ?<div style={{textAlign:"center",padding:"60px 24px",background:"white",borderRadius:20,boxShadow:"0 2px 16px rgba(0,0,0,0.06)"}}>
             {filterDate&&filterDate!=="all"
@@ -4219,7 +4397,19 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
       allEvents={events}
     />}
     {showForgot&&<ForgotPasswordModal onClose={()=>setShowForgot(false)}/>}
-    {showAI&&<AIModal onFill={d=>{setForm(p=>({...p,...d}));setShowAI(false);setTab("form");showT("Form terisi dari AI. Periksa sebelum menyimpan.","warn");}} onClose={()=>setShowAI(false)}/>}
+    {showAI&&<AIModal onFill={async d=>{
+      const{_undanganFile,_undanganNama,...formData}=d;
+      setForm(p=>({...p,...formData}));
+      if(_undanganFile){
+        try{
+          let url,nama=_undanganNama;
+          if(SUPA_OK){url=await storageUpload("undangan",_undanganFile,_undanganFile.name);} 
+          else{url=await new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsDataURL(_undanganFile);});}
+          setForm(p=>({...p,undanganFile:url,undanganNama:nama}));
+        }catch(e){showT("Gagal upload undangan: "+e.message,"error");}
+      }
+      setShowAI(false);setTab("form");showT("Form terisi dari AI. Periksa sebelum menyimpan.","warn");
+    }} onClose={()=>setShowAI(false)}/>}
     {showReport&&<ReportingModal events={events} kabagNama={kabagNama} cetakOleh={user?.nama||user?.username||""} onClose={()=>setShowReport(false)}/>}
     {showSummary&&<SummaryModal events={events} onToggleHide={id=>upd(id,{tersembunyi:!events.find(e=>e.id===id)?.tersembunyi})} onClose={()=>setShowSummary(false)}/>}
     {showAdmin&&<AdminModal onClose={()=>setShowAdmin(false)} showT={showT}/>}
