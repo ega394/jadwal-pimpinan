@@ -1127,6 +1127,461 @@ function BiometricTab({user,showT}){
   </div>;
 }
 
+// ==================== DRAFT PROGRESS VIEW (Staf) ====================
+function DraftProgressView({events, user, upd, showT, setTab, setForm, setEditId, isMobile}){
+  const NAVY="0A1628",GOLD="#C9A84C";
+  const mine=events.filter(e=>e.submittedBy===user?.username);
+  const steps=[
+    {key:"draft",label:"Draft",icon:"✏️",color:"#64748b"},
+    {key:"menunggu_kasubbag",label:"Kasubbag Protokol",icon:"🔍",color:"#d97706"},
+    {key:"menunggu_kabag",label:"Kabag",icon:"📋",color:"#7c3aed"},
+    {key:"disetujui",label:"Tayang",icon:"✅",color:"#059669"},
+  ];
+  function getStepIdx(alur){
+    if(alur==="ditolak")return -1;
+    return steps.findIndex(s=>s.key===alur);
+  }
+  const WF={"draft":{label:"Draft",color:"#64748b",bg:"#f1f5f9"},"menunggu_kasubbag":{label:"Menunggu Kasubbag",color:"#d97706",bg:"#fef3c7"},"menunggu_kabag":{label:"Menunggu Kabag",color:"#7c3aed",bg:"#ede9fe"},"disetujui":{label:"Disetujui & Tayang",color:"#059669",bg:"#dcfce7"},"ditolak":{label:"Ditolak",color:"#dc2626",bg:"#fee2e2"}};
+
+  if(mine.length===0)return(
+    <div style={{textAlign:"center",padding:"60px 24px",background:"white",borderRadius:20,boxShadow:"0 2px 16px rgba(0,0,0,0.06)"}}>
+      <div style={{fontSize:52,marginBottom:12}}>📝</div>
+      <div style={{fontSize:16,fontWeight:700,color:"#334155",marginBottom:6}}>Belum Ada Draft</div>
+      <div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>Mulai input jadwal baru untuk membuat draft pertama Anda</div>
+      <button onClick={()=>{setForm({tanggal:"",jam:"",namaAcara:"",penyelenggara:"",kontak:"",lokasi:"",pakaian:"",catatan:"",jenisKegiatan:"Umum",untukPimpinan:[],buktiUndangan:""});setEditId(null);setTab("form");}} style={{padding:"12px 24px",borderRadius:12,border:"none",background:"#0A1628",color:"white",cursor:"pointer",fontSize:14,fontWeight:700}}>
+        + Input Jadwal Baru
+      </button>
+    </div>
+  );
+
+  return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+        <div style={{fontSize:15,fontWeight:800,color:"#0A1628"}}>Draft & Progress ({mine.length})</div>
+        <button onClick={()=>{setForm({tanggal:"",jam:"",namaAcara:"",penyelenggara:"",kontak:"",lokasi:"",pakaian:"",catatan:"",jenisKegiatan:"Umum",untukPimpinan:[],buktiUndangan:""});setEditId(null);setTab("form");}} style={{padding:"8px 16px",borderRadius:10,border:"none",background:"#0A1628",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>
+          + Input Jadwal Baru
+        </button>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      {mine.sort((a,b)=>b.id-a.id).map(ev=>{
+        const si=getStepIdx(ev.alur);
+        const wf=WF[ev.alur]||WF.draft;
+        const isRejected=ev.alur==="ditolak";
+        return(
+          <div key={ev.id} style={{background:"white",borderRadius:16,padding:16,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",border:"1.5px solid "+(isRejected?"#fca5a5":ev.alur==="disetujui"?"#86efac":ev.alur==="draft"?"#e2e8f0":"#fde68a")}}>
+            {/* Header */}
+            <div style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:12}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:14,fontWeight:800,color:"#0A1628",marginBottom:3}}>{ev.namaAcara}</div>
+                <div style={{fontSize:12,color:"#64748b"}}>{ev.tanggal} · {ev.jam} WITA · {ev.penyelenggara||"-"}</div>
+              </div>
+              <span style={{padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:wf.bg,color:wf.color,whiteSpace:"nowrap"}}>{wf.label}</span>
+            </div>
+
+            {/* Progress stepper */}
+            {!isRejected&&(
+              <div style={{display:"flex",alignItems:"center",gap:0,marginBottom:12,padding:"10px 0",borderTop:"1px solid #f1f5f9",borderBottom:"1px solid #f1f5f9"}}>
+                {steps.map((s,i)=>(
+                  <React.Fragment key={s.key}>
+                    <div style={{display:"flex",flexDirection:"column",alignItems:"center",flex:1}}>
+                      <div style={{width:28,height:28,borderRadius:"50%",border:"2px solid "+(i<=si?s.color:"#e2e8f0"),background:i<si?"#0A1628":i===si?s.color:"white",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,marginBottom:4,transition:"all 0.3s"}}>
+                        {i<si?<span style={{color:"white",fontSize:10}}>✓</span>:i===si?<span style={{fontSize:13}}>{s.icon}</span>:<span style={{color:"#cbd5e1",fontSize:11}}>○</span>}
+                      </div>
+                      <div style={{fontSize:9,color:i<=si?s.color:"#cbd5e1",fontWeight:i===si?700:400,textAlign:"center",lineHeight:1.2}}>{s.label}</div>
+                    </div>
+                    {i<steps.length-1&&<div style={{height:2,flex:0.3,background:i<si?"#0A1628":"#e2e8f0",marginBottom:16}}/>}
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
+
+            {/* Rejected state */}
+            {isRejected&&(
+              <div style={{background:"#fff7ed",borderRadius:10,padding:"10px 12px",marginBottom:12,border:"1.5px solid #fed7aa"}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#c2410c",marginBottom:4}}>&#10060; Dikembalikan untuk Diperbaiki</div>
+                {ev.catatanTolak&&<div style={{fontSize:12,color:"#7c3d12",fontStyle:"italic"}}>Catatan: {ev.catatanTolak}</div>}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {(ev.alur==="draft"||ev.alur==="ditolak")&&(
+                <button onClick={()=>{setForm({tanggal:ev.tanggal,jam:ev.jam,namaAcara:ev.namaAcara,penyelenggara:ev.penyelenggara,kontak:ev.kontak||"",lokasi:ev.lokasi||"",pakaian:ev.pakaian||"",catatan:ev.catatan||"",jenisKegiatan:ev.jenisKegiatan||"Umum",untukPimpinan:ev.untukPimpinan||[],buktiUndangan:ev.buktiUndangan||""});setEditId(ev.id);setTab("form");}} style={{flex:1,padding:"9px",borderRadius:9,border:"1.5px solid #0A1628",background:"white",color:"#0A1628",cursor:"pointer",fontSize:12,fontWeight:700}}>
+                  &#9998; Edit
+                </button>
+              )}
+              {ev.alur==="draft"&&(
+                <button onClick={()=>{upd(ev.id,{alur:"menunggu_kasubbag",submittedBy:user?.username});showT("Dikirim ke Kasubbag Protokol ✓");}} style={{flex:2,padding:"9px",borderRadius:9,border:"none",background:"#0A1628",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>
+                  &#128228; Kirim ke Kasubbag Protokol
+                </button>
+              )}
+              {ev.alur==="ditolak"&&(
+                <button onClick={()=>{upd(ev.id,{alur:"menunggu_kasubbag",catatanTolak:"",submittedBy:user?.username});showT("Dikirim ulang ke Kasubbag ✓");}} style={{flex:2,padding:"9px",borderRadius:9,border:"none",background:"#d97706",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>
+                  &#128257; Kirim Ulang
+                </button>
+              )}
+              {ev.alur==="menunggu_kasubbag"&&(
+                <div style={{flex:1,padding:"8px 12px",borderRadius:9,background:"#fef3c7",fontSize:12,color:"#92400e",textAlign:"center",fontWeight:600}}>
+                  &#9203; Menunggu verifikasi Kasubbag Protokol
+                </div>
+              )}
+              {ev.alur==="menunggu_kabag"&&(
+                <div style={{flex:1,padding:"8px 12px",borderRadius:9,background:"#ede9fe",fontSize:12,color:"#5b21b6",textAlign:"center",fontWeight:600}}>
+                  &#9203; Menunggu persetujuan Kabag
+                </div>
+              )}
+              {ev.alur==="disetujui"&&(
+                <div style={{flex:1,padding:"8px 12px",borderRadius:9,background:"#dcfce7",fontSize:12,color:"#14532d",textAlign:"center",fontWeight:700}}>
+                  &#10003; Sudah tayang di agenda pimpinan
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+      </div>
+    </div>
+  );
+}
+
+// ==================== APPROVAL QUEUE VIEW (Kasubbag & Kabag) ====================
+function ApprovalQueueView({events, role, upd, showT, askConfirm, setExp, isMobile}){
+  const NAVY="#0A1628",GOLD="#C9A84C";
+  const [rejectTexts,setRT]=React.useState({});
+  const KASUBBAG_ROLES=["kasubbag_protokol","kasubbag_komdokpim"];
+  const isKasubbag=KASUBBAG_ROLES.includes(role);
+  const isKabag=role==="kabag";
+  const pending=events.filter(e=>isKasubbag?e.alur==="menunggu_kasubbag":e.alur==="menunggu_kabag");
+  const alreadyDone=events.filter(e=>{
+    if(isKasubbag)return e.alur==="menunggu_kabag"||e.alur==="disetujui"||e.alur==="ditolak";
+    if(isKabag)return e.alur==="disetujui"||e.alur==="ditolak";
+    return false;
+  }).filter(e=>e.submittedBy).slice(0,10);
+
+  function fmtTgl(tgl){try{return new Date(tgl).toLocaleDateString("id-ID",{weekday:"short",day:"numeric",month:"short",year:"numeric"});}catch{return tgl;}}
+
+  if(pending.length===0)return(
+    <div>
+      <div style={{textAlign:"center",padding:"40px 20px",background:"white",borderRadius:16,boxShadow:"0 2px 12px rgba(0,0,0,0.05)",marginBottom:16}}>
+        <div style={{fontSize:44,marginBottom:10}}>&#10003;</div>
+        <div style={{fontSize:15,fontWeight:700,color:"#0A1628",marginBottom:4}}>
+          {isKasubbag?"Tidak ada jadwal menunggu verifikasi":"Tidak ada jadwal menunggu persetujuan"}
+        </div>
+        <div style={{fontSize:13,color:"#94A3B8"}}>Semua antrian sudah diproses</div>
+      </div>
+      {alreadyDone.length>0&&(
+        <div>
+          <div style={{fontSize:12,fontWeight:700,color:"#64748b",marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>Riwayat Terakhir</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {alreadyDone.map(ev=>{
+            const wfColor=ev.alur==="disetujui"?"#059669":ev.alur==="ditolak"?"#dc2626":"#7c3aed";
+            const wfLabel=ev.alur==="disetujui"?"Disetujui":ev.alur==="ditolak"?"Ditolak":"Diteruskan ke Kabag";
+            return(
+              <div key={ev.id} style={{background:"white",borderRadius:12,padding:"12px 14px",display:"flex",gap:12,alignItems:"center",opacity:0.75}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"#334155"}}>{ev.namaAcara}</div>
+                  <div style={{fontSize:11,color:"#94a3b8"}}>{fmtTgl(ev.tanggal)} · {ev.jam}</div>
+                </div>
+                <span style={{padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:wfColor+"22",color:wfColor}}>{wfLabel}</span>
+              </div>
+            );
+          })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  return(
+    <div>
+      <div style={{background:isKasubbag?"linear-gradient(135deg,#1e3a5f,#0A1628)":"linear-gradient(135deg,#4c1d95,#6d28d9)",borderRadius:14,padding:"14px 18px",marginBottom:16,display:"flex",gap:12,alignItems:"center"}}>
+        <div style={{fontSize:28}}>&#128203;</div>
+        <div>
+          <div style={{color:"white",fontWeight:800,fontSize:14}}>{pending.length} Jadwal Perlu Ditindaklanjuti</div>
+          <div style={{color:isKasubbag?"#93c5fd":"#c4b5fd",fontSize:12,marginTop:2}}>
+            {isKasubbag?"Verifikasi dan teruskan ke Kabag":"Setujui untuk ditayangkan di agenda pimpinan"}
+          </div>
+        </div>
+      </div>
+
+      <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      {pending.map(ev=>(
+        <div key={ev.id} style={{background:"white",borderRadius:16,overflow:"hidden",boxShadow:"0 3px 14px rgba(0,0,0,0.08)",border:"2px solid "+(isKasubbag?"#fde68a":"#c4b5fd")}}>
+          {/* Header card */}
+          <div style={{padding:"14px 16px",borderBottom:"1px solid #f1f5f9"}}>
+            <div style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:8}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:15,fontWeight:800,color:"#0A1628",marginBottom:4}}>{ev.namaAcara}</div>
+                <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+                  <span style={{fontSize:12,color:"#475569"}}>&#128197; {fmtTgl(ev.tanggal)}</span>
+                  <span style={{fontSize:12,color:"#475569"}}>&#128336; {ev.jam} WITA</span>
+                  {ev.lokasi&&<span style={{fontSize:12,color:"#475569"}}>&#128205; {ev.lokasi}</span>}
+                </div>
+              </div>
+              <button onClick={()=>setExp(ev.id)} style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #e2e8f0",background:"white",color:"#475569",cursor:"pointer",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>Detail &#8594;</button>
+            </div>
+            {ev.penyelenggara&&<div style={{fontSize:12,color:"#64748b",background:"#f8fafc",borderRadius:7,padding:"5px 10px",display:"inline-block"}}>Penyelenggara: {ev.penyelenggara}</div>}
+            {ev.submittedBy&&<div style={{fontSize:11,color:"#94a3b8",marginTop:6}}>Diajukan oleh: @{ev.submittedBy}</div>}
+          </div>
+
+          {/* Rejection note textarea */}
+          <div style={{padding:"12px 16px 0"}}>
+            <label style={{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:0.5,display:"block",marginBottom:5}}>Catatan Penolakan (opsional)</label>
+            <textarea
+              placeholder="Tulis alasan jika akan menolak..."
+              value={rejectTexts[ev.id]||""}
+              onChange={e=>setRT(p=>({...p,[ev.id]:e.target.value}))}
+              rows={2}
+              style={{width:"100%",padding:"8px 11px",border:"1.5px solid #e2e8f0",borderRadius:9,resize:"none",fontSize:12,color:"#334155",background:"#f8fafc"}}
+            />
+          </div>
+
+          {/* Action buttons */}
+          <div style={{padding:"12px 16px 14px",display:"flex",gap:9}}>
+            {/* Tolak */}
+            <button
+              onClick={()=>askConfirm(
+                isKasubbag?"Tolak & Kembalikan ke Staf?":"Tolak & Kembalikan?",
+                "Jadwal ini akan dikembalikan"+(rejectTexts[ev.id]?" dengan catatan penolakan.":"."),
+                ()=>{upd(ev.id,{alur:"ditolak",catatanTolak:rejectTexts[ev.id]||""});showT("Dikembalikan ke Staf","warn");}
+                ,"Tolak","#991b1b"
+              )}
+              style={{flex:1,padding:"11px",borderRadius:10,border:"none",background:"#fee2e2",color:"#991b1b",cursor:"pointer",fontSize:13,fontWeight:700}}
+            >
+              &#10060; Tolak
+            </button>
+            {/* Setujui */}
+            {isKasubbag&&(
+              <button
+                onClick={()=>askConfirm(
+                  "Teruskan ke Kabag?",
+                  "Jadwal '"+ev.namaAcara+"' akan diteruskan ke Kabag untuk persetujuan final.",
+                  ()=>{upd(ev.id,{alur:"menunggu_kabag"});showT("Diteruskan ke Kabag ✓");}
+                  ,"Teruskan","#0A1628"
+                )}
+                style={{flex:2,padding:"11px",borderRadius:10,border:"none",background:"#0A1628",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}
+              >
+                &#9654; Teruskan ke Kabag
+              </button>
+            )}
+            {isKabag&&(
+              <button
+                onClick={()=>askConfirm(
+                  "Setujui & Publikasikan?",
+                  "Jadwal '"+ev.namaAcara+"' akan ditayangkan di agenda pimpinan.",
+                  ()=>{upd(ev.id,{alur:"disetujui"});showT("Jadwal disetujui & dipublikasi &#10003;");}
+                  ,"Setujui & Publikasi","#059669"
+                )}
+                style={{flex:2,padding:"11px",borderRadius:10,border:"none",background:"#059669",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}
+              >
+                &#10003; Setujui & Publikasi
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+      </div>
+    </div>
+  );
+}
+
+
+// ==================== IMPORT USERS TAB ====================
+function ImportUsersTab({users, save, showT, hashPassword}){
+  const NAVY="#0A1628";
+  const ROLE_OPTS=[
+    {v:"staf",l:"Staf Protokol"},{v:"staf_input",l:"Staf Protokol (Input Jadwal)"},
+    {v:"kasubbag_protokol",l:"Kasubbag Protokol"},{v:"kasubbag_komdokpim",l:"Kasubbag Komdokpim"},
+    {v:"kabag",l:"Kabag Protokol"},{v:"ajudan",l:"Ajudan Pimpinan"},
+    {v:"timkom",l:"Staf Tim Komunikasi"},{v:"walikota",l:"Walikota"},{v:"wakilwalikota",l:"Wakil Walikota"},
+  ];
+  const [rows,setRows]=React.useState([]);
+  const [importing,setImporting]=React.useState(false);
+  const [err,setErr]=React.useState("");
+  const [done,setDone]=React.useState(null);
+
+  // Parse CSV or tab-separated paste
+  function parseText(text){
+    const lines=text.trim().split('\n').filter(l=>l.trim());
+    if(!lines.length)return;
+    // Auto-detect separator
+    const sep=lines[0].includes('\t')?'\t':',';
+    const header=lines[0].split(sep).map(h=>h.trim().toLowerCase().replace(/\s+/g,'_'));
+    // Map common header variants
+    const fieldMap={
+      nama:['nama','name','nama_lengkap','full_name'],
+      nip:['nip','nik','nip_nrk','nomor_induk'],
+      jabatan:['jabatan','position','job_title'],
+      noWA:['no_wa','nowa','nomor_wa','whatsapp','no_hp','hp','telepon','no_telp'],
+    };
+    function findCol(variants){return variants.findIndex(v=>header.includes(v));}
+    const colMap={};
+    Object.entries(fieldMap).forEach(([field,variants])=>{
+      const idx=header.findIndex(h=>variants.includes(h));
+      if(idx>=0)colMap[field]=idx;
+    });
+    const data=lines.slice(1).map((line,i)=>{
+      const cols=line.split(sep).map(v=>v.trim().replace(/^"|"$/g,'').trim());
+      return {
+        _id:i,
+        nama:colMap.nama!==undefined?cols[colMap.nama]||'':'',
+        nip:colMap.nip!==undefined?cols[colMap.nip]||'':'',
+        jabatan:colMap.jabatan!==undefined?cols[colMap.jabatan]||'':'',
+        noWA:colMap.noWA!==undefined?cols[colMap.noWA]||'':'',
+        role:'staf',
+      };
+    }).filter(r=>r.nama);
+    setRows(data);
+    setErr(data.length?'':'Tidak ada data yang bisa dibaca. Pastikan header kolom: Nama, NIP, Jabatan, No WA');
+  }
+
+  function handleFile(file){
+    if(!file)return;
+    const ext=file.name.split('.').pop().toLowerCase();
+    if(ext==='csv'||ext==='txt'){
+      const reader=new FileReader();
+      reader.onload=e=>parseText(e.target.result);
+      reader.readAsText(file,'UTF-8');
+    } else if(ext==='xls'||ext==='xlsx'){
+      // Load XLSX from CDN
+      setErr("Memuat parser Excel...");
+      const s=document.createElement('script');
+      s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.onload=()=>{
+        setErr("");
+        const reader=new FileReader();
+        reader.onload=e=>{
+          try{
+            const wb=window.XLSX.read(e.target.result,{type:'array'});
+            const ws=wb.Sheets[wb.SheetNames[0]];
+            const csv=window.XLSX.utils.sheet_to_csv(ws);
+            parseText(csv);
+          }catch(er){setErr("Gagal membaca Excel: "+er.message);}
+        };
+        reader.readAsArrayBuffer(file);
+      };
+      s.onerror=()=>setErr("Gagal memuat parser Excel. Coba simpan sebagai CSV dulu.");
+      document.head.appendChild(s);
+    } else {
+      setErr("Format tidak didukung. Gunakan .xlsx, .xls, atau .csv");
+    }
+  }
+
+  async function doImport(){
+    if(!rows.length)return;
+    setImporting(true);
+    const DEFAULT_PW="12345678";
+    const hashed=await hashPassword(DEFAULT_PW);
+    let added=0,skipped=0;
+    const current=[...users];
+    for(const row of rows){
+      // username dari NIP atau dari nama
+      const uname=(row.nip||row.nama.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'')).slice(0,30);
+      if(current.find(u=>u.username===uname)){skipped++;continue;}
+      const newU={username:uname,password:hashed,nama:row.nama,jabatan:row.jabatan,role:row.role,noWA:row.noWA||""};
+      current.push(newU);
+      added++;
+    }
+    save(current);
+    setDone({added,skipped});
+    setImporting(false);
+    showT(added+" akun berhasil diimport ✓");
+  }
+
+  if(done)return(
+    <div style={{textAlign:"center",padding:"30px 10px"}}>
+      <div style={{fontSize:44,marginBottom:10}}>&#10003;</div>
+      <div style={{fontSize:16,fontWeight:700,color:"#059669",marginBottom:6}}>{done.added} Akun Berhasil Diimport</div>
+      {done.skipped>0&&<div style={{fontSize:12,color:"#94a3b8",marginBottom:16}}>{done.skipped} akun dilewati (username sudah ada)</div>}
+      <div style={{fontSize:12,color:"#64748b",background:"#f0fdf4",borderRadius:9,padding:"10px 14px",marginBottom:16}}>
+        Password default: <strong>12345678</strong><br/>Minta setiap pengguna mengganti password setelah login pertama.
+      </div>
+      <button onClick={()=>{setDone(null);setRows([]);}} style={{padding:"10px 20px",borderRadius:10,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Import Lagi</button>
+    </div>
+  );
+
+  return(
+    <div>
+      <div style={{background:"#eff6ff",borderRadius:10,padding:"10px 14px",fontSize:12,color:"#1e40af",marginBottom:14,lineHeight:1.6}}>
+        <strong>Format Excel/CSV:</strong> Kolom yang dikenali: <code>Nama</code>, <code>NIP</code>, <code>Jabatan</code>, <code>No WA</code><br/>
+        Username otomatis dari NIP. Password default: <strong>12345678</strong>
+      </div>
+
+      {/* File upload */}
+      <div style={{border:"2px dashed #cbd5e1",borderRadius:12,padding:"20px",textAlign:"center",marginBottom:14,cursor:"pointer",background:"#f8fafc"}}
+        onClick={()=>document.getElementById('imp-file').click()}
+        onDragOver={e=>{e.preventDefault();}}
+        onDrop={e=>{e.preventDefault();handleFile(e.dataTransfer.files[0]);}}
+      >
+        <div style={{fontSize:28,marginBottom:6}}>&#128229;</div>
+        <div style={{fontSize:13,fontWeight:700,color:"#334155"}}>Klik atau seret file di sini</div>
+        <div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>Mendukung .xlsx, .xls, .csv</div>
+        <input id="imp-file" type="file" accept=".xlsx,.xls,.csv,.txt" style={{display:"none"}} onChange={e=>handleFile(e.target.files[0])}/>
+      </div>
+
+      {/* Paste area */}
+      <div style={{marginBottom:14}}>
+        <label style={{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:0.5,display:"block",marginBottom:5}}>
+          Atau tempel data dari Excel (Ctrl+V setelah select kolom):
+        </label>
+        <textarea
+          placeholder={"Nama\tNIP\tJabatan\tNo WA\nJohn Doe\t198501012010011001\tStaf\t08123456789"}
+          rows={4}
+          style={{width:"100%",padding:"9px 11px",border:"1.5px solid #e2e8f0",borderRadius:9,fontSize:12,fontFamily:"monospace",resize:"vertical"}}
+          onChange={e=>parseText(e.target.value)}
+        />
+      </div>
+
+      {err&&<div style={{background:"#fee2e2",borderRadius:8,padding:"9px 12px",marginBottom:12,fontSize:12,color:"#991b1b"}}>{err}</div>}
+
+      {/* Preview table */}
+      {rows.length>0&&(
+        <div>
+          <div style={{fontSize:12,fontWeight:700,color:"#0A1628",marginBottom:8}}>{rows.length} data ditemukan — atur role masing-masing:</div>
+          <div style={{maxHeight:260,overflowY:"auto",border:"1px solid #e2e8f0",borderRadius:10}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+              <thead>
+                <tr style={{background:"#f8fafc",position:"sticky",top:0}}>
+                  {["Nama","NIP","Jabatan","No WA","Role"].map(h=>(
+                    <th key={h} style={{padding:"7px 10px",textAlign:"left",fontWeight:700,color:"#64748b",borderBottom:"1px solid #e2e8f0"}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+              {rows.map((row,i)=>(
+                <tr key={row._id} style={{borderBottom:"1px solid #f1f5f9",background:i%2===0?"white":"#fafafa"}}>
+                  <td style={{padding:"6px 10px",fontWeight:600,color:"#1e293b"}}>{row.nama||<span style={{color:"#f87171"}}>-</span>}</td>
+                  <td style={{padding:"6px 10px",color:"#475569",fontFamily:"monospace"}}>{row.nip||"-"}</td>
+                  <td style={{padding:"6px 10px",color:"#64748b"}}>{row.jabatan||"-"}</td>
+                  <td style={{padding:"6px 10px",color:"#64748b"}}>{row.noWA||"-"}</td>
+                  <td style={{padding:"4px 8px"}}>
+                    <select
+                      value={row.role}
+                      onChange={e=>setRows(p=>p.map((r,j)=>j===i?{...r,role:e.target.value}:r))}
+                      style={{fontSize:10,padding:"3px 5px",borderRadius:6,border:"1.5px solid #e2e8f0",background:"white",color:"#334155"}}
+                    >
+                      {ROLE_OPTS.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
+                    </select>
+                  </td>
+                </tr>
+              ))}
+              </tbody>
+            </table>
+          </div>
+          <button
+            onClick={doImport}
+            disabled={importing}
+            style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:importing?"#94a3b8":NAVY,color:"white",cursor:importing?"not-allowed":"pointer",fontSize:13,fontWeight:700,marginTop:12}}
+          >
+            {importing?"Mengimport...":"&#128229; Import "+rows.length+" Akun (Password: 12345678)"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 // ==================== ADMIN MODAL ====================
 function AdminModal({onClose,showT}){
   const[users,setUsers]=useState(loadUsers);const[tabA,setTabA]=useState("users");const[pendRegs,setPendRegs]=React.useState(()=>loadPendingRegs());const[editUser,setEditUser]=useState(null);const[newUser,setNewUser]=useState({username:"",password:"",nama:"",jabatan:"",role:"staf",noWA:""});const[err,setErr]=useState("");
@@ -1165,7 +1620,7 @@ function AdminModal({onClose,showT}){
     <div style={{background:"white",borderRadius:16,width:"100%",maxWidth:560,maxHeight:"90vh",display:"flex",flexDirection:"column"}}>
       <div style={{padding:"16px 20px 0",borderBottom:"1px solid #f1f5f9",flexShrink:0}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}><div style={{flex:1,fontSize:16,fontWeight:700,color:NAVY}}>Panel Admin</div><button onClick={onClose} style={{background:"#f1f5f9",border:"none",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontSize:13,fontWeight:700,color:"#64748b"}}>Tutup</button></div>
-        <div style={{display:"flex",gap:0,overflowX:"auto"}}>{[{k:"users",l:"Pengguna"},{k:"pendaftaran",l:"Pendaftaran"+(pendRegs.length>0?" ("+pendRegs.length+")":"")},{k:"add",l:"Tambah"},{k:"pw",l:"Reset PW"}].map(t=><button key={t.k} onClick={()=>{setTabA(t.k);setErr("");}} style={{padding:"9px 14px",border:"none",background:"transparent",color:tabA===t.k?NAVY:t.k==="pendaftaran"&&pendRegs.length>0?"#DC2626":"#94a3b8",fontWeight:tabA===t.k?700:500,fontSize:12,cursor:"pointer",borderBottom:tabA===t.k?"2.5px solid "+NAVY:"2.5px solid transparent",whiteSpace:"nowrap"}}>{t.l}</button>)}</div>
+        <div style={{display:"flex",gap:0,overflowX:"auto"}}>{[{k:"users",l:"Pengguna"},{k:"pendaftaran",l:"Pendaftaran"+(pendRegs.length>0?" ("+pendRegs.length+")":"")},{k:"add",l:"Tambah"},{k:"pw",l:"Reset PW"},{k:"import",l:"Import Excel"}].map(t=><button key={t.k} onClick={()=>{setTabA(t.k);setErr("");}} style={{padding:"9px 14px",border:"none",background:"transparent",color:tabA===t.k?NAVY:t.k==="pendaftaran"&&pendRegs.length>0?"#DC2626":"#94a3b8",fontWeight:tabA===t.k?700:500,fontSize:12,cursor:"pointer",borderBottom:tabA===t.k?"2.5px solid "+NAVY:"2.5px solid transparent",whiteSpace:"nowrap"}}>{t.l}</button>)}</div>
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px 20px"}}>
         {err&&<div style={{background:"#fee2e2",borderRadius:8,padding:"9px 12px",marginBottom:12,fontSize:13,color:"#991b1b"}}>{err}</div>}
@@ -1213,6 +1668,7 @@ function AdminModal({onClose,showT}){
           </div>)
         }</div>}
         {tabA==="pw"&&<div style={{background:"#fef3c7",borderRadius:10,padding:"12px 14px",fontSize:13,color:"#92400e"}}>Untuk reset password pengguna, gunakan tab Pengguna lalu klik Edit pada akun yang bersangkutan.</div>}
+        {tabA==="import"&&<ImportUsersTab users={users} save={save} showT={showT} hashPassword={hashPassword}/>}
       </div>
     </div>
   </div>;
@@ -2148,10 +2604,14 @@ export default function App(){
     let base=events;
     // Staf dan staf_input lihat jadwal disetujui yang ditugaskan ke mereka juga
     if(role==="staf"||role==="staf_input"){
+      // Tab "draft": semua draft mereka sendiri (semua status workflow)
+      if(tab==="draft"){
+        return events.filter(e=>e.submittedBy===user.username).sort((a,b)=>b.id-a.id);
+      }
+      // Tab "jadwal": hanya yang sudah disetujui (termasuk yang mereka ditugaskan)
       return events.filter(e=>{
         if(e.alur==="disetujui"&&(e.personil||[]).includes(user.username))return true;
-        // Jadwal yang mereka submit sendiri (semua status: draft, pending, ditolak)
-        if(e.submittedBy===user.username)return true;
+        if(e.alur==="disetujui"&&e.submittedBy===user.username)return true;
         return false;
       }).filter(e=>!filterDate||e.tanggal===filterDate).sort((a,b)=>(a.tanggal+a.jam).localeCompare(b.tanggal+b.jam));
     }
@@ -2200,6 +2660,9 @@ export default function App(){
   const isKasubbagAny=KASUBBAG_ROLES.includes(role);
   const listEvents=getVisible();
   const showForm=tab==="form"&&(role==="staf"||role==="staf_input");
+  const showDraft=tab==="draft"&&(role==="staf"||role==="staf_input");
+  const KASUBBAG_ROLES_CHECK=["kasubbag_protokol","kasubbag_komdokpim"];
+  const showApprovalQueue=(KASUBBAG_ROLES_CHECK.includes(role)||role==="kabag")&&tab==="jadwal";
   const showPenugasan=tab==="penugasan";
 
   const CSS=`
@@ -2521,8 +2984,8 @@ export default function App(){
   // ==================== SIDEBAR ====================
   const navGroups=[
     {label:"MENU UTAMA",items:[
-      ...((role==="staf"||role==="staf_input")?[{key:"penugasan",icon:"🎯",label:"Penugasan Saya"},{key:"jadwal",icon:"📅",label:"Jadwal Saya"},{key:"form",icon:"✏️",label:"Input Jadwal Baru"}]:[]),
-      ...(KASUBBAG_ROLES.includes(role)||role==="kabag"?[{key:"jadwal",icon:"📋",label:"Antrian Approval"},{key:"semua",icon:"🗓️",label:"Semua Jadwal"}]:[]),
+      ...((role==="staf"||role==="staf_input")?[{key:"penugasan",icon:"🎯",label:"Penugasan Saya"},{key:"draft",icon:"📝",label:"Draft & Progress"},{key:"jadwal",icon:"📅",label:"Jadwal Disetujui"},{key:"form",icon:"✏️",label:"Input Jadwal Baru"}]:[]),
+      ...(KASUBBAG_ROLES.includes(role)||role==="kabag"?[{key:"jadwal",icon:"📋",label:role==="kabag"?"Persetujuan Kabag":"Verifikasi Kasubbag"},{key:"semua",icon:"🗓️",label:"Semua Jadwal"}]:[]),
       ...(role==="ajudan"?[{key:"ajudan",icon:"✅",label:"Dashboard Ajudan"},{key:"jadwal",icon:"📅",label:"Semua Jadwal"}]:[]),
       ...(role==="timkom"?[{key:"jadwal",icon:"📅",label:"Jadwal Saya"},{key:"penugasan",icon:"🎯",label:"Penugasan Saya"}]:[]),
       ...(role==="walikota"||role==="wakilwalikota"?[{key:"jadwal",icon:"📅",label:"Jadwal Saya"}]:[]),
@@ -2567,6 +3030,10 @@ export default function App(){
               const n=events.filter(e=>KASUBBAG_ROLES.includes(role)?e.alur==="menunggu_kasubbag":e.alur==="menunggu_kabag").length;
               return n>0?<span style={{marginLeft:"auto",background:"#ef4444",color:"white",borderRadius:10,padding:"1px 7px",fontSize:11,fontWeight:700,minWidth:18,textAlign:"center"}}>{n}</span>:null;
             })()}
+            {item.key==="draft"&&(role==="staf"||role==="staf_input")&&(()=>{
+              const n=events.filter(e=>e.submittedBy===user?.username&&(e.alur==="draft"||e.alur==="ditolak")).length;
+              return n>0?<span style={{marginLeft:"auto",background:"#f59e0b",color:"white",borderRadius:10,padding:"1px 7px",fontSize:11,fontWeight:700,minWidth:18,textAlign:"center"}}>{n}</span>:null;
+            })()}
           </button>);})}'
 
       </div>)}
@@ -2581,7 +3048,7 @@ export default function App(){
 
   // ==================== MOBILE HEADER + iOS BOTTOM TAB BAR ====================
   const mobTabs=[
-    ...((role==="staf"||role==="staf_input")?[{key:"penugasan",label:"Tugas",icon:"🎯"},{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"form",label:"Input",icon:"✏️"}]:[]),
+    ...((role==="staf"||role==="staf_input")?[{key:"penugasan",label:"Tugas",icon:"🎯"},{key:"draft",label:"Draft",icon:"📝"},{key:"jadwal",label:"Disetujui",icon:"📅"},{key:"form",label:"Input",icon:"✏️"}]:[]),
     ...(KASUBBAG_ROLES.includes(role)||role==="kabag"?[{key:"jadwal",label:"Antrian",icon:"📋"},{key:"semua",label:"Semua",icon:"🗓️"}]:[]),
     ...(role==="ajudan"?[{key:"ajudan",label:"Dashboard",icon:"✅"},{key:"jadwal",label:"Jadwal",icon:"📅"}]:[]),
     ...(role==="timkom"?[{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"penugasan",label:"Tugas",icon:"🎯"}]:[]),
@@ -3798,6 +4265,10 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
         ?<AjudanDashboard events={events} upd={upd} showT={showT} setDelegTarget={setDelegTarget} isMobile={isMobile}/>
         :tab==="jadwal"&&tab!=="tayang"&&tab!=="semua"&&(role==="walikota"||role==="wakilwalikota")
         ?<PimpinanView events={events} role={role} user={user} upd={upd} showT={showT} isMobile={isMobile} setDelegTarget={setDelegTarget}/>
+        :showDraft
+        ?<DraftProgressView events={events} user={user} upd={upd} showT={showT} setTab={setTab} setForm={setForm} setEditId={setEditId} isMobile={isMobile}/>
+        :showApprovalQueue
+        ?<ApprovalQueueView events={events} role={role} upd={upd} showT={showT} askConfirm={askConfirm} setExp={setExp} isMobile={isMobile}/>
         :showForm
         ?<FormView form={form} setForm={setForm} editId={editId} setEditId={setEditId} setTab={setTab} isMobile={isMobile} onSubmit={submit} onCancel={()=>{setForm(emptyForm);setEditId(null);setTab("jadwal");}} onOpenAI={()=>setShowAI(true)} onUndanganUpload={handleUndanganUpload} showT={showT}/>
         :listContentJSX}
