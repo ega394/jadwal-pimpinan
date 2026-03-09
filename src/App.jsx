@@ -3700,6 +3700,51 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
   // ==================== MAIN CONTENT ====================
   const pageTitle=tab==="tayang"?"Agenda Kegiatan Pimpinan":tab==="form"?"Input Jadwal Baru":tab==="semua"?"Semua Jadwal":tab==="penugasan"?"Penugasan Saya":tab==="jadwal"?KASUBBAG_ROLES.includes(role)||role==="kabag"?"Antrian Approval":role==="staf"||role==="staf_input"?"Jadwal Saya":"Jadwal Saya":"Jadwal";
 
+  const listContentJSX=(<>
+        {(KASUBBAG_ROLES.includes(role)||role==="kabag")&&pendingList.length>0&&tab==="jadwal"&&
+          <div style={{background:"linear-gradient(135deg,#1e3a5f,#0A1628)",borderRadius:14,padding:"14px 18px",marginBottom:14,display:"flex",gap:12,alignItems:"center",cursor:"pointer",boxShadow:"0 4px 18px rgba(10,22,40,0.18)"}}
+            onClick={()=>{setExp(pendingList[0].id);setTimeout(()=>document.getElementById("ev-"+pendingList[0].id)?.scrollIntoView({behavior:"smooth",block:"center"}),150);}}>
+            <div style={{fontSize:26}}>&#128203;</div>
+            <div style={{flex:1}}>
+              <div style={{color:"white",fontWeight:700,fontSize:14,marginBottom:2}}>
+                {pendingList.length} Jadwal Menunggu {KASUBBAG_ROLES.includes(role)?"Verifikasi Kasubbag Protokol":"Persetujuan Kabag"}
+              </div>
+              <div style={{color:"#93c5fd",fontSize:12}}>
+                {pendingList.slice(0,2).map(e=>e.namaAcara).join(" - ")}{pendingList.length>2?" + "+(pendingList.length-2)+" lainnya":""}
+              </div>
+            </div>
+            <div style={{background:"#C9A84C",color:"#0A1628",borderRadius:8,padding:"6px 12px",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>
+              Review Sekarang
+            </div>
+          </div>
+        }
+        {listEvents.length===0
+          ?<div style={{textAlign:"center",padding:"60px 24px",background:"white",borderRadius:20,boxShadow:"0 2px 16px rgba(0,0,0,0.06)"}}>
+            {filterDate&&filterDate!=="all"
+              ?<div>
+                <div style={{fontSize:48,marginBottom:12}}>&#128269;</div>
+                <div style={{fontSize:16,fontWeight:700,color:"#334155",marginBottom:8}}>Tidak ada jadwal ditemukan</div>
+                <div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Filter aktif: <strong style={{color:"#0A1628"}}>{filterDate==="today"?"Hari Ini":filterDate==="week"?"Minggu Ini":"Rentang Tanggal"}</strong></div>
+                <button onClick={()=>{setFDate("");setFilterFrom("");setFilterTo("");setShowRangeFilter(false);}}
+                  style={{padding:"10px 20px",borderRadius:10,border:"1.5px solid #0A1628",background:"white",color:"#0A1628",cursor:"pointer",fontSize:13,fontWeight:700}}>
+                  Hapus Filter
+                </button>
+              </div>
+              :<div>
+                <div style={{fontSize:52,marginBottom:12}}>&#128237;</div>
+                <div style={{fontSize:16,fontWeight:700,color:"#334155",marginBottom:6}}>Belum ada jadwal</div>
+                <div style={{fontSize:13,color:"#94A3B8"}}>
+                  {role==="staf"||role==="staf_input"?"Klik tombol + Input Jadwal Baru untuk menambah jadwal pertama":"Belum ada jadwal yang diajukan"}
+                </div>
+              </div>
+            }
+          </div>
+          :isMobile
+            ?<div>{listEvents.map(ev=><EventCard key={ev.id} ev={ev}/>)}</div>
+            :<TableView evList={listEvents}/>
+        }
+      </>);
+
   const mainContentJSX=(<div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",background:"#F0F4FA",overflow:"hidden"}}>
     {/* ── Desktop top bar ── */}
     {!isMobile&&<div style={{background:"white",borderBottom:"1px solid #E4EAF2",padding:"14px 32px",display:"flex",alignItems:"center",gap:16,flexShrink:0,boxShadow:"0 1px 8px rgba(0,0,0,0.04)"}}>
@@ -3755,52 +3800,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
         ?<PimpinanView events={events} role={role} user={user} upd={upd} showT={showT} isMobile={isMobile} setDelegTarget={setDelegTarget}/>
         :showForm
         ?<FormView form={form} setForm={setForm} editId={editId} setEditId={setEditId} setTab={setTab} isMobile={isMobile} onSubmit={submit} onCancel={()=>{setForm(emptyForm);setEditId(null);setTab("jadwal");}} onOpenAI={()=>setShowAI(true)} onUndanganUpload={handleUndanganUpload} showT={showT}/>
-
-        :<>
-        {/* ── Banner Antrian Approval (Kasubbag & Kabag) ── */}
-        {(KASUBBAG_ROLES.includes(role)||role==="kabag")&&pendingList.length>0&&tab==="jadwal"&&
-          <div style={{background:"linear-gradient(135deg,#1e3a5f,#0A1628)",borderRadius:14,padding:"14px 18px",marginBottom:14,display:"flex",gap:12,alignItems:"center",cursor:"pointer",boxShadow:"0 4px 18px rgba(10,22,40,0.18)"}}
-            onClick={()=>{setExp(pendingList[0].id);setTimeout(()=>document.getElementById("ev-"+pendingList[0].id)?.scrollIntoView({behavior:"smooth",block:"center"}),150);}}>
-            <div style={{fontSize:26}}>&#128203;</div>
-            <div style={{flex:1}}>
-              <div style={{color:"white",fontWeight:700,fontSize:14,marginBottom:2}}>
-                {pendingList.length} Jadwal Menunggu {KASUBBAG_ROLES.includes(role)?"Verifikasi Kasubbag Protokol":"Persetujuan Kabag"}
-              </div>
-              <div style={{color:"#93c5fd",fontSize:12}}>
-                {pendingList.slice(0,2).map(e=>e.namaAcara).join(" · ")}{pendingList.length>2?" · +"+(pendingList.length-2)+" lainnya":""}
-              </div>
-            </div>
-            <div style={{background:"#C9A84C",color:"#0A1628",borderRadius:8,padding:"6px 12px",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>
-              Review Sekarang
-            </div>
-          </div>
-        }
-        {listEvents.length===0
-          ?<div style={{textAlign:"center",padding:"60px 24px",background:"white",borderRadius:20,boxShadow:"0 2px 16px rgba(0,0,0,0.06)"}}>
-            {filterDate&&filterDate!=="all"
-              ?<>
-                <div style={{fontSize:48,marginBottom:12}}>🔍</div>
-                <div style={{fontSize:16,fontWeight:700,color:"#334155",marginBottom:8}}>Tidak ada jadwal ditemukan</div>
-                <div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Filter aktif: <strong style={{color:"#0A1628"}}>{filterDate==="today"?"Hari Ini":filterDate==="week"?"Minggu Ini":"Rentang Tanggal"}</strong></div>
-                <button onClick={()=>{setFDate("");setFilterFrom("");setFilterTo("");setShowRangeFilter(false);}}
-                  style={{padding:"10px 20px",borderRadius:10,border:"1.5px solid #0A1628",background:"white",color:"#0A1628",cursor:"pointer",fontSize:13,fontWeight:700}}>
-                  Hapus Filter
-                </button>
-              </>
-              :<>
-                <div style={{fontSize:52,marginBottom:12}}>📭</div>
-                <div style={{fontSize:16,fontWeight:700,color:"#334155",marginBottom:6}}>Belum ada jadwal</div>
-                <div style={{fontSize:13,color:"#94A3B8"}}>
-                  {role==="staf"||role==="staf_input"?"Klik tombol \u2295 Input Jadwal Baru untuk menambah jadwal pertama":"Belum ada jadwal yang diajukan"}
-                </div>
-              </>
-            }
-          </div>
-          :isMobile
-            ?<div>{listEvents.map(ev=><EventCard key={ev.id} ev={ev}/>)}</div>
-            :<TableView evList={listEvents}/>
-      }
-        </>
+        :listContentJSX}
     </div>
   </div>);
 
