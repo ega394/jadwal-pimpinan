@@ -1,137 +1,204 @@
-// api/otp.js — Generate & verify OTP untuk lupa password
-const https = require("https");
-const { guard } = require("./_middleware");
+// ============================================================
+//  /api/otp.js  —  Reset Password via OTP WhatsApp (Fonnte)
+//  Deploy di Vercel sebagai file: api/otp.js
+//
+//  ENV yang wajib diset di Vercel Dashboard:
+//    FONNTE_TOKEN  = token dari https://fonnte.com
+//    SUPABASE_URL  = URL project Supabase Anda
+//    SUPABASE_KEY  = anon/service key Supabase
+// ============================================================
 
-const SUPA_URL = process.env.VITE_SUPABASE_URL;
-const SUPA_KEY = process.env.VITE_SUPABASE_ANON_KEY;
-const WA_TOKEN = process.env.WA_TOKEN;
-const WA_PHONE_ID = process.env.WA_PHONE_ID;
-const H = { "Content-Type": "application/json", apikey: SUPA_KEY, Authorization: "Bearer " + SUPA_KEY };
+const OTP_TTL_MS = 10 * 60 * 1000; // 10 menit
 
-function httpsPost(url, body, headers = {}) {
-  return new Promise((resolve, reject) => {
-    const u = new URL(url);
-    const data = JSON.stringify(body);
-    const req = https.request({
-      hostname: u.hostname, path: u.pathname + u.search, method: "POST",
-      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data), ...headers },
-    }, res => {
-      const chunks = [];
-      res.on("data", c => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
-      res.on("end", () => {
-        try { resolve({ status: res.statusCode, body: JSON.parse(Buffer.concat(chunks).toString()) }); }
-        catch { resolve({ status: res.statusCode, body: {} }); }
-      });
-      res.on("error", reject);
-    });
-    req.on("error", reject);
-    req.write(data); req.end();
-  });
-}
-
-async function supaFetch(path, opts = {}) {
-  const url = SUPA_URL + path;
-  const res = await fetch(url, { headers: H, ...opts });
-  return res.ok ? await res.json() : null;
-}
-
-// Buat tabel otp_tokens jika diperlukan (dipanggil otomatis)
-async function ensureTable() {
-  // Coba insert dummy — jika tabel ada, skip
-  await fetch(SUPA_URL + "/rest/v1/otp_tokens?limit=1", { headers: H }).catch(() => {});
-}
-
-module.exports = async (req, res) => {
-  const g = guard(req, res, { requireSecret: false, maxPerMin: 5 });
-  if (g) return;
-
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-
-  let body = "";
-  await new Promise(r => { req.on("data", c => body += c); req.on("end", r); });
-  const { action, username, otp, newPassword } = JSON.parse(body || "{}");
-
-  if (!username) return res.status(400).json({ error: "Username wajib diisi." });
-
-  // ── Cek user di Supabase ──
-  const users = await supaFetch(`/rest/v1/users?username=eq.${encodeURIComponent(username)}&select=username,nama,noWA,role`);
-  const user = users?.[0];
-  if (!user) return res.status(404).json({ error: "Username tidak ditemukan." });
-
-  // ══════════════════════════════════════
-  // ACTION: request — kirim OTP
-  // ══════════════════════════════════════
-  if (action === "request") {
-    if (!user.noWA) {
-      return res.status(400).json({
-        error: "Nomor WhatsApp belum terdaftar untuk akun ini. Hubungi Kabag untuk reset password."
-      });
-    }
-
-    // Generate OTP 6 digit
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 menit
-
-    // Hapus OTP lama & simpan yang baru
-    await fetch(SUPA_URL + `/rest/v1/otp_tokens?username=eq.${encodeURIComponent(username)}`,
-      { method: "DELETE", headers: H });
-    await fetch(SUPA_URL + "/rest/v1/otp_tokens", {
-      method: "POST", headers: { ...H, Prefer: "return=minimal" },
-      body: JSON.stringify({ username, code, expires_at: expiresAt })
-    });
-
-    // Kirim via WhatsApp
-    if (WA_TOKEN && WA_PHONE_ID) {
-      const phone = String(user.noWA).replace(/\D/g, "").replace(/^0/, "62");
-      await httpsPost(
-        `https://graph.facebook.com/v19.0/${WA_PHONE_ID}/messages`,
-        {
-          messaging_product: "whatsapp", to: phone, type: "text",
-          text: {
-            body: `🏛️ *PROKOPIM KOTA TARAKAN*\n\nKode reset password Anda:\n\n*${code}*\n\nBerlaku 10 menit. Jangan berikan kode ini kepada siapapun.`
-          }
-        },
-        { Authorization: "Bearer " + WA_TOKEN }
-      ).catch(() => {});
-    }
-
-    // Samarkan nomor WA untuk tampilan
-    const wa = user.noWA.replace(/\D/g, "");
-    const masked = wa.slice(0, 4) + "****" + wa.slice(-3);
-
-    return res.status(200).json({ ok: true, masked, nama: user.nama });
-  }
-
-  // ══════════════════════════════════════
-  // ACTION: verify — verifikasi OTP + ganti password
-  // ══════════════════════════════════════
-  if (action === "verify") {
-    if (!otp || !newPassword) return res.status(400).json({ error: "OTP dan password baru wajib diisi." });
-    if (newPassword.length < 6) return res.status(400).json({ error: "Password minimal 6 karakter." });
-
-    const tokens = await supaFetch(`/rest/v1/otp_tokens?username=eq.${encodeURIComponent(username)}&select=code,expires_at`);
-    const token = tokens?.[0];
-
-    if (!token) return res.status(400).json({ error: "Kode OTP tidak ditemukan. Minta kode baru." });
-    if (new Date() > new Date(token.expires_at)) return res.status(400).json({ error: "Kode OTP sudah kadaluarsa. Minta kode baru." });
-    if (token.code !== String(otp).trim()) return res.status(400).json({ error: "Kode OTP salah." });
-
-    // Hash password baru (SHA-256)
-    const { createHash } = require("crypto");
-    const hashed = "$sha256$" + createHash("sha256").update(newPassword).digest("hex");
-
-    // Update password di Supabase
-    await fetch(SUPA_URL + `/rest/v1/users?username=eq.${encodeURIComponent(username)}`, {
-      method: "PATCH", headers: { ...H, Prefer: "return=minimal" },
-      body: JSON.stringify({ password: hashed })
-    });
-
-    // Hapus OTP yang sudah dipakai
-    await fetch(SUPA_URL + `/rest/v1/otp_tokens?username=eq.${encodeURIComponent(username)}`,
-      { method: "DELETE", headers: H });
-
-    return res.status(200).json({ ok: true });
-  }
-
-  return res.status(400).json({ error: "Action tidak dikenal." });
+// ── Helper: headers Supabase ─────────────────────────────────
+function supaHeaders() {
+return {
+“Content-Type”:  “application/json”,
+“apikey”:        process.env.SUPABASE_KEY,
+“Authorization”: `Bearer ${process.env.SUPABASE_KEY}`,
 };
+}
+
+// ── Ambil user dari Supabase berdasarkan username ────────────
+async function getUser(username) {
+const url = `${process.env.SUPABASE_URL}/rest/v1/users?username=eq.${encodeURIComponent(username)}&select=*`;
+const r = await fetch(url, { headers: supaHeaders() });
+if (!r.ok) throw new Error(“Gagal membaca data user”);
+const rows = await r.json();
+return rows[0] || null;
+}
+
+// ── Update field user di Supabase ───────────────────────────
+async function updateUser(username, fields) {
+const url = `${process.env.SUPABASE_URL}/rest/v1/users?username=eq.${encodeURIComponent(username)}`;
+const r = await fetch(url, {
+method:  “PATCH”,
+headers: { …supaHeaders(), Prefer: “return=minimal” },
+body:    JSON.stringify(fields),
+});
+if (!r.ok) throw new Error(“Gagal update data user”);
+}
+
+// ── Hash password (SHA-256, sama dgn logika di App.jsx) ──────
+async function hashPassword(plain) {
+// Jalankan di Node.js (Web Crypto tersedia di Node 18+)
+const encoder = new TextEncoder();
+const data    = encoder.encode(plain);
+const buf     = await crypto.subtle.digest(“SHA-256”, data);
+const hex     = Array.from(new Uint8Array(buf))
+.map(b => b.toString(16).padStart(2, “0”))
+.join(””);
+return “$sha256$” + hex;
+}
+
+// ── Generate kode OTP 6 digit ─────────────────────────────
+function generateOTP() {
+return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+// ── Masking nomor WA: 0812****5678 ─────────────────────────
+function maskPhone(phone) {
+const p = phone.replace(/\D/g, “”);
+if (p.length < 6) return “****”;
+return p.slice(0, 4) + “****” + p.slice(-4);
+}
+
+// ── Kirim OTP via Fonnte ──────────────────────────────────
+async function sendOTPviaWA(noWA, otp, nama) {
+const token = process.env.FONNTE_TOKEN;
+if (!token) return false;
+
+const nomor = noWA.trim().replace(/^0/, “62”).replace(/\D/g, “”);
+const pesan =
+`🔐 *Reset Password — Sistem Jadwal Pimpinan Kota Tarakan*\n\n` +
+`Halo *${nama}*,\n\n` +
+`Kode OTP Anda:\n\n` +
+`*${otp}*\n\n` +
+`Berlaku selama *10 menit*. Jangan bagikan kode ini kepada siapapun.\n\n` +
+`Jika Anda tidak meminta reset password, abaikan pesan ini.`;
+
+try {
+const r = await fetch(“https://api.fonnte.com/send”, {
+method:  “POST”,
+headers: {
+“Authorization”: token,
+“Content-Type”:  “application/json”,
+},
+body: JSON.stringify({ target: nomor, message: pesan }),
+});
+const d = await r.json();
+return d.status !== false;
+} catch {
+return false;
+}
+}
+
+// ── Main handler ─────────────────────────────────────────────
+export default async function handler(req, res) {
+if (req.method !== “POST”) {
+return res.status(405).json({ error: “Method not allowed” });
+}
+
+const { action, username, otp, newPassword } = req.body || {};
+
+if (!username) return res.status(400).json({ error: “Username wajib diisi” });
+
+// ── ACTION: request OTP ──────────────────────────────────
+if (action === “request”) {
+let user;
+try {
+user = await getUser(username);
+} catch (e) {
+return res.status(500).json({ error: “Gagal membaca data: “ + e.message });
+}
+
+```
+if (!user) {
+  return res.status(404).json({ error: "Username tidak ditemukan" });
+}
+
+const code    = generateOTP();
+const expires = new Date(Date.now() + OTP_TTL_MS).toISOString();
+
+// Simpan OTP ke Supabase (field sementara)
+try {
+  await updateUser(username, { otp_code: code, otp_expires: expires });
+} catch (e) {
+  return res.status(500).json({ error: "Gagal menyimpan OTP: " + e.message });
+}
+
+// Coba kirim via WA
+if (user.noWA) {
+  const sent = await sendOTPviaWA(user.noWA, code, user.nama || username);
+  if (sent) {
+    return res.status(200).json({
+      channel: "wa",
+      masked:  maskPhone(user.noWA),
+      nama:    user.nama || username,
+    });
+  }
+}
+
+// Fallback: tampilkan OTP di layar (jika WA tidak tersedia)
+return res.status(200).json({
+  channel: "screen",
+  code,
+  nama: user.nama || username,
+});
+```
+
+}
+
+// ── ACTION: verify OTP ───────────────────────────────────
+if (action === “verify”) {
+if (!otp || !newPassword) {
+return res.status(400).json({ error: “OTP dan password baru wajib diisi” });
+}
+
+```
+let user;
+try {
+  user = await getUser(username);
+} catch (e) {
+  return res.status(500).json({ error: "Gagal membaca data: " + e.message });
+}
+
+if (!user) {
+  return res.status(404).json({ error: "Username tidak ditemukan" });
+}
+
+if (!user.otp_code) {
+  return res.status(400).json({ error: "OTP belum diminta atau sudah kedaluwarsa" });
+}
+
+if (new Date(user.otp_expires) < new Date()) {
+  return res.status(400).json({ error: "Kode OTP sudah kedaluwarsa. Minta kode baru." });
+}
+
+if (user.otp_code !== otp.trim()) {
+  return res.status(400).json({ error: "Kode OTP salah" });
+}
+
+if (newPassword.length < 6) {
+  return res.status(400).json({ error: "Password minimal 6 karakter" });
+}
+
+// Hash password baru & hapus OTP
+const hashed = await hashPassword(newPassword);
+try {
+  await updateUser(username, {
+    password:    hashed,
+    otp_code:    null,
+    otp_expires: null,
+  });
+} catch (e) {
+  return res.status(500).json({ error: "Gagal update password: " + e.message });
+}
+
+return res.status(200).json({ ok: true });
+```
+
+}
+
+return res.status(400).json({ error: “Action tidak valid” });
+}
