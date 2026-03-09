@@ -3756,6 +3756,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
         :showForm
         ?<FormView form={form} setForm={setForm} editId={editId} setEditId={setEditId} setTab={setTab} isMobile={isMobile} onSubmit={submit} onCancel={()=>{setForm(emptyForm);setEditId(null);setTab("jadwal");}} onOpenAI={()=>setShowAI(true)} onUndanganUpload={handleUndanganUpload} showT={showT}/>
 
+        :<>
         {/* ── Banner Antrian Approval (Kasubbag & Kabag) ── */}
         {(KASUBBAG_ROLES.includes(role)||role==="kabag")&&tab==="jadwal"&&(()=>{
           const pending=events.filter(e=>
@@ -3780,7 +3781,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
             </div>
           </div>;
         })()}
-                :listEvents.length===0
+        {listEvents.length===0
           ?<div style={{textAlign:"center",padding:"60px 24px",background:"white",borderRadius:20,boxShadow:"0 2px 16px rgba(0,0,0,0.06)"}}>
             {filterDate&&filterDate!=="all"
               ?<>
@@ -3805,6 +3806,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
             ?<div>{listEvents.map(ev=><EventCard key={ev.id} ev={ev}/>)}</div>
             :<TableView evList={listEvents}/>
       }
+        </>
     </div>
   </div>);
 
