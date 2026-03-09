@@ -1361,8 +1361,7 @@ function ImportUsersTab({users,save,showT}){
   const[done,setDone]=React.useState(false);
   const ROLES=["staf","staf_input","kasubbag_protokol","kasubbag_komdokpim","kabag","ajudan_walikota","ajudan_wakilwalikota","timkom","walikota","wakilwalikota"];
   const parseCSV=(text)=>{
-    const lines=text.trim().split('
-').filter(Boolean);
+    const lines=text.trim().split('\n').filter(Boolean);
     if(lines.length<2)return[];
     const header=lines[0].split(',').map(h=>h.trim().toLowerCase().replace(/[^a-z]/g,''));
     const colIdx={nama:header.findIndex(h=>h.includes('nama')),nip:header.findIndex(h=>h.includes('nip')||h.includes('username')),jabatan:header.findIndex(h=>h.includes('jabatan')||h.includes('jabat')),wa:header.findIndex(h=>h.includes('wa')||h.includes('hp')||h.includes('telp'))};
