@@ -3758,29 +3758,23 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
 
         :<>
         {/* ── Banner Antrian Approval (Kasubbag & Kabag) ── */}
-        {(KASUBBAG_ROLES.includes(role)||role==="kabag")&&tab==="jadwal"&&(()=>{
-          const pending=events.filter(e=>
-            KASUBBAG_ROLES.includes(role)
-              ?e.alur==="menunggu_kasubbag"
-              :e.alur==="menunggu_kabag"
-          );
-          if(!pending.length)return null;
-          return <div style={{background:"linear-gradient(135deg,#1e3a5f,#0A1628)",borderRadius:14,padding:"14px 18px",marginBottom:14,display:"flex",gap:12,alignItems:"center",cursor:"pointer",boxShadow:"0 4px 18px rgba(10,22,40,0.18)"}}
-            onClick={()=>{setExp(pending[0].id);setTimeout(()=>document.getElementById("ev-"+pending[0].id)?.scrollIntoView({behavior:"smooth",block:"center"}),150);}}>
-            <div style={{fontSize:26}}>📋</div>
+        {(KASUBBAG_ROLES.includes(role)||role==="kabag")&&pendingList.length>0&&tab==="jadwal"&&
+          <div style={{background:"linear-gradient(135deg,#1e3a5f,#0A1628)",borderRadius:14,padding:"14px 18px",marginBottom:14,display:"flex",gap:12,alignItems:"center",cursor:"pointer",boxShadow:"0 4px 18px rgba(10,22,40,0.18)"}}
+            onClick={()=>{setExp(pendingList[0].id);setTimeout(()=>document.getElementById("ev-"+pendingList[0].id)?.scrollIntoView({behavior:"smooth",block:"center"}),150);}}>
+            <div style={{fontSize:26}}>&#128203;</div>
             <div style={{flex:1}}>
               <div style={{color:"white",fontWeight:700,fontSize:14,marginBottom:2}}>
-                {pending.length} Jadwal Menunggu {KASUBBAG_ROLES.includes(role)?"Verifikasi Kasubbag Protokol":"Persetujuan Kabag"}
+                {pendingList.length} Jadwal Menunggu {KASUBBAG_ROLES.includes(role)?"Verifikasi Kasubbag Protokol":"Persetujuan Kabag"}
               </div>
               <div style={{color:"#93c5fd",fontSize:12}}>
-                {pending.map(e=>e.namaAcara).slice(0,2).join(" · ")}{pending.length>2?" · +"+(pending.length-2)+" lainnya":""}
+                {pendingList.slice(0,2).map(e=>e.namaAcara).join(" · ")}{pendingList.length>2?" · +"+(pendingList.length-2)+" lainnya":""}
               </div>
             </div>
             <div style={{background:"#C9A84C",color:"#0A1628",borderRadius:8,padding:"6px 12px",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>
-              Review Sekarang →
+              Review Sekarang
             </div>
-          </div>;
-        })()}
+          </div>
+        }
         {listEvents.length===0
           ?<div style={{textAlign:"center",padding:"60px 24px",background:"white",borderRadius:20,boxShadow:"0 2px 16px rgba(0,0,0,0.06)"}}>
             {filterDate&&filterDate!=="all"
