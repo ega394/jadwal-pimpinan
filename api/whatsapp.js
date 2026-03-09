@@ -1,133 +1,131 @@
-// api/whatsapp.js — Vercel Serverless Function
-// Kirim notifikasi WhatsApp via Meta Cloud API (GRATIS s/d 1000 pesan/bulan)
-const https = require("https");
-const { guard } = require("./_middleware");
+// ============================================================
+//  /api/whatsapp.js  —  Notifikasi WhatsApp via Fonnte
+//  Deploy di Vercel sebagai file: api/whatsapp.js
+//
+//  ENV yang wajib diset di Vercel Dashboard:
+//    FONNTE_TOKEN = token dari https://fonnte.com
+// ============================================================
 
-function httpsPost(url, body, token) {
-  return new Promise((resolve, reject) => {
-    const urlObj = new URL(url);
-    const data = JSON.stringify(body);
-    const req = https.request({
-      hostname: urlObj.hostname,
-      path: urlObj.pathname + urlObj.search,
+export default async function handler(req, res) {
+  // Hanya terima POST
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  const FONNTE_TOKEN = process.env.FONNTE_TOKEN;
+  if (!FONNTE_TOKEN) {
+    console.error("FONNTE_TOKEN tidak diset di environment variables");
+    return res.status(500).json({ error: "WA service not configured" });
+  }
+
+  const {
+    to,
+    namaAcara,
+    tanggal,
+    jam,
+    penyelenggara,
+    lokasi,
+    event,
+    submittedBy,
+    catatanTolak,
+  } = req.body || {};
+
+  if (!to) {
+    return res.status(400).json({ error: "Nomor tujuan (to) wajib diisi" });
+  }
+
+  // Normalisasi nomor: 08xxx → 628xxx
+  const nomor = to.trim().replace(/^0/, "62").replace(/\D/g, "");
+
+  // ── Susun isi pesan berdasarkan jenis event ──────────────
+  let pesan = "";
+
+  const infoJadwal = [
+    `📋 *${namaAcara || "-"}*`,
+    `📅 ${tanggal || "-"} pukul ${jam || "-"} WITA`,
+    penyelenggara ? `🏢 ${penyelenggara}` : null,
+    lokasi        ? `📍 ${lokasi}`        : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  if (event === "submit") {
+    const oleh = submittedBy ? ` oleh *${submittedBy}*` : "";
+    pesan =
+      `📬 *Jadwal Baru Masuk${oleh}*\n\n` +
+      infoJadwal +
+      `\n\nSilakan buka sistem untuk mereview & menyetujui jadwal ini.\n` +
+      `_Sistem Jadwal Pimpinan Kota Tarakan_`;
+
+  } else if (event === "kasubbag_approve") {
+    pesan =
+      `📤 *Jadwal Diteruskan ke Kabag*\n\n` +
+      infoJadwal +
+      `\n\nJadwal ini sudah disetujui Kasubbag dan menunggu persetujuan akhir Kabag.\n` +
+      `_Sistem Jadwal Pimpinan Kota Tarakan_`;
+
+  } else if (event === "approved") {
+    pesan =
+      `✅ *Jadwal Disetujui & Dipublikasi*\n\n` +
+      infoJadwal +
+      `\n\nJadwal ini sudah resmi dipublikasikan dan dapat dilihat di sistem.\n` +
+      `_Sistem Jadwal Pimpinan Kota Tarakan_`;
+
+  } else if (event === "penugasan") {
+    const nama    = req.body.namaPersonil ? `*${req.body.namaPersonil}*` : "Anda";
+    const catatanPen = req.body.catatanPenugasan
+      ? `\n\n📝 *Catatan penugasan:*\n${req.body.catatanPenugasan}`
+      : "";
+    pesan =
+      `🎯 *Penugasan Baru untuk ${nama}*\n\n` +
+      infoJadwal +
+      catatanPen +
+      `\n\nSilakan buka sistem untuk melihat detail penugasan Anda.\n` +
+      `_Sistem Jadwal Pimpinan Kota Tarakan_`;
+
+  } else if (event === "rejected") {
+    const catatan = catatanTolak ? `\n\n📝 *Catatan:* ${catatanTolak}` : "";
+    pesan =
+      `❌ *Jadwal Dikembalikan*\n\n` +
+      infoJadwal +
+      catatan +
+      `\n\nSilakan perbaiki dan kirim ulang melalui sistem.\n` +
+      `_Sistem Jadwal Pimpinan Kota Tarakan_`;
+
+  } else {
+    // Event tidak dikenal — kirim info jadwal generik
+    pesan =
+      `🔔 *Notifikasi Jadwal*\n\n` +
+      infoJadwal +
+      `\n\n_Sistem Jadwal Pimpinan Kota Tarakan_`;
+  }
+
+  // ── Kirim via Fonnte API ─────────────────────────────────
+  try {
+    const fonnteRes = await fetch("https://api.fonnte.com/send", {
       method: "POST",
       headers: {
+        "Authorization": FONNTE_TOKEN,
         "Content-Type": "application/json",
-        "Authorization": "Bearer " + token,
-        "Content-Length": Buffer.byteLength(data, "utf8"),
       },
-    }, (res) => {
-      const chunks = [];
-      res.on("data", c => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
-      res.on("end", () => {
-        const raw = Buffer.concat(chunks).toString("utf8");
-        try { resolve({ status: res.statusCode, body: JSON.parse(raw) }); }
-        catch (e) { resolve({ status: res.statusCode, body: { raw } }); }
-      });
-      res.on("error", reject);
+      body: JSON.stringify({
+        target:  nomor,
+        message: pesan,
+        // countryCode: "62",  // opsional, aktifkan jika perlu
+      }),
     });
-    req.on("error", reject);
-    req.write(data, "utf8");
-    req.end();
-  });
-}
 
-module.exports = async (req, res) => {
-  // CORS
-  // Rate limit: 60 notif per menit per IP
-  const g = guard(req, res, { requireSecret: false, maxPerMin: 60 });
-  if (g) return;
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    const data = await fonnteRes.json();
 
-  const WA_TOKEN   = process.env.WA_TOKEN;      // Meta API Token
-  const WA_PHONE_ID = process.env.WA_PHONE_ID;  // Phone Number ID
-
-  if (!WA_TOKEN || !WA_PHONE_ID) {
-    return res.status(500).json({ error: "WA_TOKEN / WA_PHONE_ID belum diset di Vercel" });
-  }
-
-  const { to, namaAcara, tanggal, jam, penyelenggara, lokasi, event: evType, catatanTolak, submittedBy } = req.body;
-
-  if (!to || !namaAcara) {
-    return res.status(400).json({ error: "Parameter tidak lengkap" });
-  }
-
-  // Format nomor: hilangkan +, 0 awal → 62
-  const phone = String(to).replace(/\D/g, "").replace(/^0/, "62");
-
-  // Bangun pesan sesuai jenis event
-  const HARI = ["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
-  const tglFmt = tanggal
-    ? HARI[new Date(tanggal + "T00:00:00").getDay()] + ", " +
-      new Date(tanggal + "T00:00:00").toLocaleDateString("id-ID", { day:"numeric", month:"long", year:"numeric" })
-    : "-";
-
-  let pesan = "";
-  const header = "🏛️ *PROKOPIM KOTA TARAKAN*\n";
-
-  if (evType === "submit") {
-    pesan = header +
-      "━━━━━━━━━━━━━━━━━━━━\n" +
-      "📋 *Jadwal Baru Masuk*\n\n" +
-      `📌 *${namaAcara}*\n` +
-      `📅 ${tglFmt}\n` +
-      `⏰ ${jam} WITA\n` +
-      `🏢 ${penyelenggara}\n` +
-      (lokasi ? `📍 ${lokasi}\n` : "") +
-      `👤 Diajukan oleh: ${submittedBy || "-"}\n\n` +
-      "Silakan buka aplikasi untuk memverifikasi.\n" +
-      "➡️ https://prokopim.tarakankota.go.id";
-  } else if (evType === "kasubbag_approve") {
-    pesan = header +
-      "━━━━━━━━━━━━━━━━━━━━\n" +
-      "✅ *Jadwal Diteruskan ke Kabag*\n\n" +
-      `📌 *${namaAcara}*\n` +
-      `📅 ${tglFmt} — ${jam} WITA\n` +
-      `🏢 ${penyelenggara}\n\n` +
-      "Menunggu persetujuan Anda.\n" +
-      "➡️ https://prokopim.tarakankota.go.id";
-  } else if (evType === "approved") {
-    pesan = header +
-      "━━━━━━━━━━━━━━━━━━━━\n" +
-      "✅ *Jadwal Disetujui & Dipublikasi*\n\n" +
-      `📌 *${namaAcara}*\n` +
-      `📅 ${tglFmt} — ${jam} WITA\n` +
-      `🏢 ${penyelenggara}\n` +
-      (lokasi ? `📍 ${lokasi}\n` : "") +
-      "\nJadwal sudah tayang di Agenda Pimpinan.\n" +
-      "➡️ https://prokopim.tarakankota.go.id";
-  } else if (evType === "rejected") {
-    pesan = header +
-      "━━━━━━━━━━━━━━━━━━━━\n" +
-      "❌ *Jadwal Dikembalikan*\n\n" +
-      `📌 *${namaAcara}*\n` +
-      `📅 ${tglFmt} — ${jam} WITA\n\n` +
-      `💬 Catatan: _${catatanTolak || "Perlu diperbaiki"}_\n\n` +
-      "Silakan edit dan kirim ulang.\n" +
-      "➡️ https://prokopim.tarakankota.go.id";
-  } else {
-    pesan = header + `📢 ${namaAcara} — ${tglFmt}`;
-  }
-
-  const payload = {
-    messaging_product: "whatsapp",
-    to: phone,
-    type: "text",
-    text: { preview_url: false, body: pesan },
-  };
-
-  try {
-    const result = await httpsPost(
-      `https://graph.facebook.com/v19.0/${WA_PHONE_ID}/messages`,
-      payload,
-      WA_TOKEN
-    );
-    if (result.status === 200) {
-      return res.status(200).json({ ok: true, messageId: result.body?.messages?.[0]?.id });
-    } else {
-      return res.status(result.status).json({ error: result.body });
+    if (!fonnteRes.ok || data.status === false) {
+      console.error("Fonnte error:", data);
+      return res.status(500).json({ error: "Gagal kirim WA", detail: data });
     }
-  } catch (e) {
-    return res.status(500).json({ error: e.message });
+
+    return res.status(200).json({ ok: true, detail: data });
+
+  } catch (err) {
+    console.error("Fetch ke Fonnte gagal:", err.message);
+    return res.status(500).json({ error: err.message });
   }
-};
+}
