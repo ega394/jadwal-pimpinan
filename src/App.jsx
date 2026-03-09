@@ -737,32 +737,68 @@ function SummaryModal({events,onToggleHide,onClose}){
   const shareText=shareLines.join(NL);
   const copy=()=>{navigator.clipboard.writeText(shareText).catch(()=>{const ta=document.createElement("textarea");ta.value=shareText;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);});};
   const printF4L=()=>{
-    const w=window.open("","_blank");
-    const kabag=kabagNama||"Kabag Protokol & Komunikasi Pimpinan";
     const _now=new Date();
     const printDate=_now.toLocaleDateString("id-ID",{day:"numeric",month:"long",year:"numeric"});
-    const printTime=_now.toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
-    const printDateTime=printDate+" pukul "+printTime+" WITA";
-    // Group by tanggal untuk rowspan
-    const byTgl={};
-    filtered.forEach((ev,i)=>{
-      if(!byTgl[ev.tanggal])byTgl[ev.tanggal]=[];
-      byTgl[ev.tanggal].push({...ev,_globalIdx:i});
-    });
-    let nomor=0;
-    const rows=Object.keys(byTgl).sort().flatMap(tgl=>{
-      const evs=byTgl[tgl];
-      return evs.map((ev,iInGroup)=>{
-        nomor++;
-        const wkS=ev.untukPimpinan.includes("walikota")?(ev.delegasiKeWWK?"Delegasi WWK":ev.statusWK==="hadir"?"Hadir":ev.statusWK==="tidak_hadir"?"Tidak Hadir":ev.statusWK==="diwakilkan"?"Diwakilkan"+(ev.perwakilanWK?" ("+ev.perwakilanWK+")":""):"-"):"-";
-        const wwkS=(ev.untukPimpinan.includes("wakilwalikota")||ev.delegasiKeWWK)?(ev.statusWWK==="hadir"?"Hadir":ev.statusWWK==="tidak_hadir"?"Tidak Hadir":ev.statusWWK==="diwakilkan"?"Diwakilkan"+(ev.perwakilanWWK?" ("+ev.perwakilanWWK+")":""):"-"):"-";
-        const tglCell=iInGroup===0?"<td class='nw' rowspan='"+evs.length+"' style='background:#EBF0FA;font-weight:700;color:#0B2545;vertical-align:middle;text-align:center;border-right:2px solid #CBD5E1'><strong>"+getHari(tgl)+"</strong><br><span style='font-size:7.5pt;font-weight:400'>"+fmtShort(tgl)+"</span></td>":"";
-        return "<tr><td class='c'>"+nomor+"</td>"+tglCell+"<td class='c'><strong>"+ev.jam+" WITA</strong></td><td><strong>"+ev.namaAcara+"</strong><br><span style='font-size:7.5pt;color:#64748b'>"+ev.penyelenggara+"</span></td><td class='c "+(ev.jenisKegiatan==="Sambutan"?"u":ev.jenisKegiatan==="Pengarahan"?"b":"g")+"'>"+ev.jenisKegiatan+"</td><td>"+(ev.lokasi||"<em style='color:#cbd5e1'>-</em>")+"</td><td style='font-size:7.5pt'>"+( ev.kontak||"<em style='color:#cbd5e1'>-</em>" )+"</td><td class='c' style='font-size:7pt'>"+ev.pakaian+"</td><td class='c'>"+wkS+"</td><td class='c'>"+wwkS+"</td><td class='cat'></td></tr>";
-      });
+    const printTime=_now.toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"});
+    const rows=pub.map((ev,i)=>{
+      const tgl=ev.tanggal?`<b>${getHari(ev.tanggal)}, ${fmt(ev.tanggal)}</b>`:"";
+      const pim=(ev.untukPimpinan||[]).map(p=>p==="walikota"?"WK":p==="wakilwalikota"?"WWK":p).join(", ")||"-";
+      return `<tr><td class="c">${i+1}</td><td class="nw">${tgl}</td><td class="c"><b>${ev.jam}</b> WITA</td><td><b>${ev.namaAcara}</b><br><span class="sub">${ev.penyelenggara||""}</span></td><td>${ev.lokasi||"-"}</td><td class="c">${pim}</td></tr>`;
     }).join("");
-    w.document.write("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Rekap Kegiatan</title><style>@page{size:330mm 210mm;margin:1.5cm 1.8cm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{font-family:Arial,sans-serif;font-size:8.5pt;color:#1a1a1a}.kop{display:flex;align-items:center;gap:14px;border-bottom:3px solid #0B2545;padding-bottom:10px;margin-bottom:8px}.kop img{width:52px;height:52px;object-fit:contain}.kop h1{font-size:12pt;font-weight:900;color:#0B2545;margin:0 0 1px}.kop h2{font-size:9pt;font-weight:700;color:#0B2545;margin:0 0 2px}.kop p{font-size:7.5pt;color:#475569;margin:0}.jdl{text-align:center;margin:8px 0}.jdl h3{font-size:12pt;font-weight:900;color:#0B2545;margin:0;text-transform:uppercase;letter-spacing:1px}.jdl p{font-size:8.5pt;color:#475569;margin:3px 0 0}table{width:100%;border-collapse:collapse;font-size:8pt}thead th{background:#0B2545;color:#FFFFFF;padding:7px 6px;text-align:left;font-size:7.5pt;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}thead th.c{text-align:center}tbody td{padding:6px;border-bottom:1px solid #e2e8f0;vertical-align:top;line-height:1.4}tbody tr:nth-child(even) td{background:#f8fafc}tbody tr:last-child td{border-bottom:2px solid #0B2545}.c{text-align:center}.nw{white-space:nowrap}.cat{min-width:90px;border-left:1px dashed #94a3b8}.u{color:#7c3aed;font-weight:700}.b{color:#2563eb;font-weight:700}.g{color:#065f46;font-weight:700}.ttd{margin-top:22px;display:flex;justify-content:space-between;align-items:flex-end}.ttd-info{font-size:7.5pt;color:#64748b;line-height:1.8}.ttd-info b{color:#1a1a1a;font-size:8pt}.ttd-box{text-align:center;min-width:240px}.ttd-box .loc-date{font-size:8pt;color:#334155;margin:0 0 4px}.ttd-box .jab{font-size:8.5pt;font-weight:700;color:#0B2545;margin:0 0 56px;line-height:1.4}.ttd-box p{margin:0;border:none;padding:0}.ttd-box .nm{font-size:9pt;font-weight:900;color:#0B2545;margin:0 0 2px;letter-spacing:-0.2px;border:none}.ttd-box .nip{font-size:7.5pt;color:#64748b;display:flex;align-items:center;justify-content:center;gap:4px}.ttd-box .nip-line{display:inline-block;border-bottom:1px solid #94a3b8;width:160px;height:12px}.foot{margin-top:8px;font-size:7pt;color:#94a3b8;text-align:center;border-top:1px solid #e2e8f0;padding-top:5px}</style></head><body><div class='kop'><img src='/logo_tarakan.png' onerror=\"this.style.display='none'\"/><div><h1>PEMERINTAH KOTA TARAKAN</h1><h2>BAGIAN PROTOKOL DAN KOMUNIKASI PIMPINAN</h2><p>Sekretariat Daerah Kota Tarakan</p></div></div><div class='jdl'><h3>Rekap Agenda Kegiatan Pimpinan</h3><p>Periode: "+rangeLabel()+" &bull; Dicetak: "+printDateTime+" &bull; Total: <strong>"+filtered.length+" kegiatan</strong></p></div><table><thead><tr><th class='c' style='width:24px'>No</th><th style='width:78px'>Hari/Tgl</th><th class='c' style='width:52px'>Pukul<br>(WITA)</th><th style='width:170px'>Nama Acara</th><th class='c' style='width:60px'>Jenis</th><th style='width:110px'>Tempat/Lokasi</th><th style='width:80px'>Contact Person</th><th class='c' style='width:70px'>Pakaian</th><th class='c' style='width:50px'>WK</th><th class='c' style='width:50px'>WWK</th><th style='width:80px'>Catatan<br>Kepala Daerah</th></tr></thead><tbody>"+rows+"</tbody></table><div class='ttd'><div class='ttd-info'><b>Dicetak oleh:</b> "+cetakOleh+"<br><b>Sistem:</b> Bagian Protokol dan Komunikasi Pimpinan Setda Kota Tarakan</div><div class='ttd-box'><p class='loc-date'>Tarakan, "+printDate+"</p><p class='jab'>Kepala Bagian Protokol dan Komunikasi Pimpinan</p><p class='nm'>Anugrah Yega Pranatha, M.Si.</p><p class='nip'>NIP. 198811032007011003</p></div></div><p class='foot'>Sistem Terpadu Jadwal dan Agenda Kegiatan Pimpinan #TarakanHibot</p></body></html>");
-    w.document.close();w.focus();setTimeout(()=>w.print(),500);
+    const w=window.open("","_blank");
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Agenda ${modeLabel}</title>
+<style>@page{size:330mm 210mm landscape;margin:1.2cm 1.8cm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{font-family:Arial,sans-serif;font-size:9pt;color:#1a1a1a;margin:0}.kop{display:flex;align-items:center;gap:14px;border-bottom:3px solid #0B2545;padding-bottom:8px;margin-bottom:8px}.kop img{width:46px;height:46px;object-fit:contain}.kop h1{font-size:11pt;font-weight:900;color:#0B2545;margin:0 0 1px}.kop h2{font-size:8.5pt;font-weight:700;color:#0B2545;margin:0 0 2px}.kop p{font-size:7.5pt;color:#475569;margin:0}.jdl{text-align:center;margin:6px 0 10px}.jdl h3{font-size:12pt;font-weight:900;color:#0B2545;margin:0;text-transform:uppercase;letter-spacing:1px}.jdl p{font-size:8.5pt;color:#475569;margin:3px 0 0}table{width:100%;border-collapse:collapse}thead th{background:#0B2545;color:#FFFFFF;padding:7px 8px;text-align:left;font-size:8.5pt;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}thead th.c{text-align:center}tbody td{padding:7px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top;line-height:1.5}tbody tr:nth-child(even) td{background:#f8fafc}.c{text-align:center}.nw{white-space:nowrap}.sub{font-size:8pt;color:#64748b}.info{font-size:8pt;color:#64748b;text-align:right;margin-bottom:6px}.foot{margin-top:10px;font-size:7.5pt;color:#94a3b8;text-align:center;border-top:1px solid #e2e8f0;padding-top:5px}</style></head><body>
+<div class="kop"><img src="/logo_tarakan.png" onerror="this.style.display='none'"/><div><h1>PEMERINTAH KOTA TARAKAN</h1><h2>BAGIAN PROTOKOL DAN KOMUNIKASI PIMPINAN</h2><p>Sekretariat Daerah Kota Tarakan</p></div></div>
+<div class="jdl"><h3>Agenda Kegiatan Pimpinan</h3><p>${modeLabel} &bull; Total: <b>${pub.length} agenda</b></p></div>
+<div class="info">Dicetak: ${printDate} pukul ${printTime} WITA</div>
+<table><thead><tr><th class="c" style="width:24px">No</th><th style="width:110px">Hari/Tanggal</th><th class="c" style="width:65px">Pukul</th><th>Nama Acara / Penyelenggara</th><th style="width:170px">Lokasi</th><th class="c" style="width:55px">Pimpinan</th></tr></thead><tbody>${rows}</tbody></table>
+<p class="foot">Sistem Terpadu Jadwal dan Agenda Kegiatan Pimpinan &bull; Bagian Protokol dan Komunikasi Pimpinan Setda Kota Tarakan &bull; #TarakanHibot</p>
+</body></html>`);
+    w.document.close();w.print();
   };
+  return <div style={{position:"fixed",inset:0,zIndex:8100,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+    <div style={{background:"white",borderRadius:16,width:"100%",maxWidth:500,maxHeight:"88vh",display:"flex",flexDirection:"column"}}>
+      <div style={{padding:"16px 20px 12px",borderBottom:"1px solid #f1f5f9",display:"flex",alignItems:"center",gap:10}}>
+        <div style={{flex:1}}><div style={{fontSize:16,fontWeight:700,color:NAVY}}>Rekap Agenda WA</div><div style={{fontSize:12,color:"#94A3B8",marginTop:2}}>{pub.length} agenda aktif</div></div>
+        <button onClick={onClose} style={{background:"#f1f5f9",border:"none",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontSize:13}}>&#x2715;</button>
+      </div>
+      <div style={{padding:"12px 20px",borderBottom:"1px solid #f1f5f9",display:"flex",gap:6,flexWrap:"wrap"}}>
+        {[{k:"today",l:"Hari Ini"},{k:"tomorrow",l:"Besok"},{k:"range",l:"Rentang"}].map(m=>(
+          <button key={m.k} onClick={()=>setMode(m.k)} style={{padding:"6px 14px",borderRadius:20,border:"none",background:mode===m.k?NAVY:"#f1f5f9",color:mode===m.k?"white":"#334155",fontSize:12,fontWeight:mode===m.k?700:400,cursor:"pointer"}}>
+            {m.l}
+          </button>
+        ))}
+        {mode==="range"&&<div style={{display:"flex",gap:6,alignItems:"center",width:"100%",marginTop:6}}>
+          <input type="date" value={from} onChange={e=>setFrom(e.target.value)} style={{flex:1,padding:"7px 10px",borderRadius:8,border:"1.5px solid #e2e8f0",fontSize:12}}/>
+          <span style={{color:"#94a3b8",fontSize:12}}>s/d</span>
+          <input type="date" value={to} onChange={e=>setTo(e.target.value)} style={{flex:1,padding:"7px 10px",borderRadius:8,border:"1.5px solid #e2e8f0",fontSize:12}}/>
+        </div>}
+      </div>
+      <div style={{flex:1,overflowY:"auto",padding:"14px 20px 20px"}}>
+        {filtered.length===0?<div style={{textAlign:"center",padding:"30px",color:"#94a3b8",fontSize:14}}>Tidak ada agenda pada periode ini</div>:
+        <>{filtered.map(ev=><div key={ev.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,marginBottom:8,background:ev.tersembunyi?"#f8fafc":"white",border:"1px solid #f1f5f9",opacity:ev.tersembunyi?0.5:1}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:700,color:"#0F2040",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.namaAcara}</div>
+            <div style={{fontSize:11,color:"#64748b"}}>{mode==="range"?fmt(ev.tanggal)+" · ":""}{ev.jam} WITA | {ev.penyelenggara}</div>
+          </div>
+          <button onClick={()=>onToggleHide(ev.id)} style={{flexShrink:0,padding:"5px 10px",borderRadius:8,border:"1.5px solid "+(ev.tersembunyi?"#94a3b8":NAVY),background:ev.tersembunyi?"#f1f5f9":"white",color:ev.tersembunyi?"#94a3b8":NAVY,cursor:"pointer",fontSize:11,fontWeight:600}}>
+            {ev.tersembunyi?"Tampilkan":"Sembunyikan"}
+          </button>
+        </div>)}
+        {pub.length>0&&<>
+          <div style={{background:"#f8fafc",borderRadius:10,padding:12,border:"1px solid #e2e8f0",marginTop:6,marginBottom:12}}><textarea readOnly value={shareText} style={{width:"100%",border:"none",background:"transparent",resize:"none",fontSize:12,color:"#334155",fontFamily:"sans-serif",lineHeight:1.7,outline:"none",height:"auto",minHeight:120}} rows={shareLines.length}/></div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            <button onClick={copy} style={{padding:"12px",borderRadius:10,border:"none",background:NAVY,color:"white",cursor:"pointer",fontWeight:700,fontSize:13}}>Salin Teks WA</button>
+            <button onClick={printF4L} style={{padding:"12px",borderRadius:10,border:"1.5px solid "+NAVY,background:"white",color:NAVY,cursor:"pointer",fontWeight:700,fontSize:13}}>🖨️ Cetak F4 Landscape</button>
+          </div>
+        </>}</>}
+      </div>
+    </div>
+  </div>;
+}
+
+
+// ==================== REPORTING MODAL ====================
 function ReportingModal({events,onClose,kabagNama,cetakOleh}){
   const[mode,setMode]=useState("today");const[from,setFrom]=useState(todayStr());const[to,setTo]=useState(todayStr());const[printMode,setPrintMode]=useState("a4");
   const modeLabel={today:"Hari Ini",tomorrow:"Besok",week:"Minggu Ini",month:"Bulan Ini",range:"Rentang"};
@@ -1361,7 +1397,8 @@ function ImportUsersTab({users,save,showT}){
   const[done,setDone]=React.useState(false);
   const ROLES=["staf","staf_input","kasubbag_protokol","kasubbag_komdokpim","kabag","ajudan_walikota","ajudan_wakilwalikota","timkom","walikota","wakilwalikota"];
   const parseCSV=(text)=>{
-    const lines=text.trim().split('\n').filter(Boolean);
+    const lines=text.trim().split('
+').filter(Boolean);
     if(lines.length<2)return[];
     const header=lines[0].split(',').map(h=>h.trim().toLowerCase().replace(/[^a-z]/g,''));
     const colIdx={nama:header.findIndex(h=>h.includes('nama')),nip:header.findIndex(h=>h.includes('nip')||h.includes('username')),jabatan:header.findIndex(h=>h.includes('jabatan')||h.includes('jabat')),wa:header.findIndex(h=>h.includes('wa')||h.includes('hp')||h.includes('telp'))};
