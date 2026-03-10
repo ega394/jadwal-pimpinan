@@ -2975,13 +2975,13 @@ const TH={
   // ==================== SIDEBAR ====================
   const navGroups=[
     {label:"MENU UTAMA",items:[
-      ...(role==="staf"?[{key:"jadwal",icon:"📅",label:"Jadwal"},{key:"penugasan",icon:"🎯",label:"Penugasan"},{key:"notif",icon:"🔔",label:"Notifikasi"}]:[]),
+      ...(role==="staf"?[{key:"jadwal",icon:"📅",label:"Jadwal"},{key:"penugasan",icon:"🎯",label:"Penugasan"}]:[]),
       ...(role==="admin_rk"?[{key:"form",icon:"✏️",label:"Input Jadwal"},{key:"jadwal",icon:"📅",label:"Jadwal Disetujui"},{key:"rk",icon:"📋",label:"Rencana Kegiatan"}]:[]),
       ...(KASUBBAG_ROLES.includes(role)?[{key:"jadwal",icon:"📋",label:"Antrian"},{key:"semua",icon:"🗓️",label:"Semua Jadwal"},{key:"penugasan",icon:"🎯",label:"Penugasan"}]:[]),
       ...(role==="kabag"?[{key:"jadwal",icon:"📋",label:"Antrian"},{key:"semua",icon:"🗓️",label:"Semua Jadwal"},{key:"penugasan",icon:"🎯",label:"Penugasan"}]:[]),
       ...((role==="ajudan_walikota"||role==="ajudan_wakilwalikota")?[{key:"ajudan",icon:"✅",label:"Konfirmasi"},{key:"jadwal",icon:"📅",label:"Jadwal"},{key:"penugasan",icon:"🎯",label:"Penugasan"}]:[]),
-      ...(role==="timkom"?[{key:"jadwal",icon:"📅",label:"Jadwal"},{key:"penugasan",icon:"🎯",label:"Penugasan"},{key:"notif",icon:"🔔",label:"Notifikasi"}]:[]),
-      ...(role==="walikota"||role==="wakilwalikota"?[{key:"jadwal",icon:"📅",label:"Jadwal Saya"},{key:"notif",icon:"🔔",label:"Notifikasi"}]:[]),
+      ...(role==="timkom"?[{key:"jadwal",icon:"📅",label:"Jadwal"},{key:"penugasan",icon:"🎯",label:"Penugasan"}]:[]),
+      ...(role==="walikota"||role==="wakilwalikota"?[{key:"jadwal",icon:"📅",label:"Jadwal Saya"}]:[]),
       {key:"tayang",icon:"🏛️",label:"Agenda Tayang"},
     ]},
     {label:"LAPORAN & TOOLS",items:[
@@ -3031,13 +3031,13 @@ const TH={
 
   // ==================== MOBILE HEADER + iOS BOTTOM TAB BAR ====================
   const mobTabs=[
-    ...(role==="staf"?[{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"penugasan",label:"Penugasan",icon:"🎯"},{key:"notif",label:"Notif",icon:"🔔"}]:[]),
+    ...(role==="staf"?[{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"penugasan",label:"Penugasan",icon:"🎯"}]:[]),
     ...(role==="admin_rk"?[{key:"form",label:"Input",icon:"✏️"},{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"rk",label:"RK",icon:"📋"}]:[]),
     ...(KASUBBAG_ROLES.includes(role)?[{key:"jadwal",label:"Antrian",icon:"📋"},{key:"semua",label:"Jadwal",icon:"🗓️"},{key:"penugasan",label:"Penugasan",icon:"🎯"}]:[]),
     ...(role==="kabag"?[{key:"jadwal",label:"Antrian",icon:"📋"},{key:"semua",label:"Jadwal",icon:"🗓️"},{key:"penugasan",label:"Penugasan",icon:"🎯"}]:[]),
     ...((role==="ajudan_walikota"||role==="ajudan_wakilwalikota")?[{key:"ajudan",label:"Konfirmasi",icon:"✅"},{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"penugasan",label:"Penugasan",icon:"🎯"}]:[]),
-    ...(role==="timkom"?[{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"penugasan",label:"Penugasan",icon:"🎯"},{key:"notif",label:"Notif",icon:"🔔"}]:[]),
-    ...(role==="walikota"||role==="wakilwalikota"?[{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"notif",label:"Notif",icon:"🔔"}]:[]),
+    ...(role==="timkom"?[{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"penugasan",label:"Penugasan",icon:"🎯"}]:[]),
+    ...(role==="walikota"||role==="wakilwalikota"?[{key:"jadwal",label:"Jadwal",icon:"📅"}]:[]),
     {key:"tayang",label:"Tayang",icon:"🏛️"},
     {key:"action:more",label:"Lainnya",icon:"⋯"},
   ];
@@ -4929,7 +4929,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
         :KASUBBAG_ROLES.includes(role)&&tab==="dashboard"
         ?<KasubbagDashboard events={events} user={user} upd={upd} showT={showT} askConfirm={askConfirm} isMobile={isMobile} onPenugasan={ev=>setPenugasanEv(ev)}/>
         :tab==="notif"
-        ?<NotifCenter events={events} user={user} onClose={()=>setTab(["kabag","kasubbag_protokol","kasubbag_komdokpim"].includes(role)?"dashboard":["ajudan_walikota","ajudan_wakilwalikota"].includes(role)?"ajudan":"jadwal")} isMobile={true}/>
+        ?null /* notif ditangani oleh bell icon di header */
         :tab==="jadwal"&&tab!=="tayang"&&tab!=="semua"
         ?<PimpinanView events={events} role={role} user={user} upd={upd} showT={showT} isMobile={isMobile} setDelegTarget={setDelegTarget}/>
         :(role==="admin_rk"&&tab==="draft")
