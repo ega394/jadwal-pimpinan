@@ -4709,6 +4709,27 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
               <div style={{fontSize:15,fontWeight:800,color:"#0F172A",lineHeight:1.3,marginBottom:5}}>{ev.namaAcara}</div>
               <div style={{fontSize:12,color:"#64748B",marginBottom:8}}>{ev.penyelenggara}</div>
               <DisposisiBar ev={ev}/>
+              {/* Personil ditugaskan — tampil untuk kabag & kasubbag */}
+              {["kabag","kasubbag_protokol","kasubbag_komdokpim"].includes(role)&&(()=>{
+                const allU=loadUsers();
+                const personilLabels=(ev.personil||[]).map(un=>allU.find(u=>u.username===un)?.nama||un);
+                if(!personilLabels.length)return(
+                  <div style={{display:"flex",alignItems:"center",gap:5,marginTop:6}}>
+                    <span style={{fontSize:10,color:"#CBD5E1"}}>○</span>
+                    <span style={{fontSize:11,color:"#CBD5E1",fontStyle:"italic"}}>Belum ada personil ditugaskan</span>
+                  </div>
+                );
+                return(
+                  <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:7,alignItems:"center"}}>
+                    <span style={{fontSize:10,color:"#64748B",fontWeight:600,marginRight:2}}>👥</span>
+                    {personilLabels.map((nm,i)=>(
+                      <span key={i} style={{background:"#EFF6FF",color:"#1D4ED8",borderRadius:5,padding:"2px 7px",fontSize:10,fontWeight:700,border:"1px solid #BFDBFE"}}>
+                        {nm}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
             <div style={{color:"#C8D4E0",transition:"transform 0.2s",transform:isExpanded?"rotate(180deg)":"none",marginTop:4,fontSize:12}}>▼</div>
           </div>
