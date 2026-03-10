@@ -1,49 +1,40 @@
-// ============================================================
-//  /api/otp.js  —  Reset Password via OTP WhatsApp (Fonnte)
-//
-//  ENV di Vercel Dashboard:
-//    FONNTE_TOKEN  = token dari https://fonnte.com
-//    SUPABASE_URL  = URL project Supabase
-//    SUPABASE_KEY  = anon/service key Supabase
-//
-//  Jalankan SQL ini SEKALI di Supabase SQL Editor:
-//    ALTER TABLE users
-//      ADD COLUMN IF NOT EXISTS otp_code text,
-//      ADD COLUMN IF NOT EXISTS otp_expires timestamptz;
-// ============================================================
+// api/otp.js — Reset Password via OTP WhatsApp (Fonnte)
+// ENV di Vercel Dashboard (gunakan nama yang SAMA dengan yang sudah ada):
+//   VITE_SUPABASE_URL      = URL project Supabase
+//   VITE_SUPABASE_ANON_KEY = anon key Supabase
+//   FONNTE_TOKEN           = token dari https://fonnte.com
 
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 menit
+
+// Baca ENV — support kedua nama (VITE_ dan non-VITE_)
+const SUPA_URL = process.env.VITE_SUPABASE_URL  || process.env.SUPABASE_URL  || "";
+const SUPA_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || "";
 
 function supaHeaders() {
   return {
     "Content-Type":  "application/json",
-    "apikey":        process.env.SUPABASE_KEY,
-    "Authorization": "Bearer " + process.env.SUPABASE_KEY,
+    "apikey":        SUPA_KEY,
+    "Authorization": "Bearer " + SUPA_KEY,
   };
 }
 
 async function getUser(username) {
-  const url = process.env.SUPABASE_URL
-    + "/rest/v1/users?username=eq."
-    + encodeURIComponent(username)
-    + "&select=*";
+  const url = SUPA_URL + "/rest/v1/users?username=eq."
+    + encodeURIComponent(username) + "&select=*";
   const r = await fetch(url, { headers: supaHeaders() });
-  if (!r.ok) throw new Error("Gagal membaca data user");
+  if (!r.ok) throw new Error("Gagal membaca data user (status " + r.status + ")");
   const rows = await r.json();
   return rows[0] || null;
 }
 
 async function updateUser(username, fields) {
-  const url = process.env.SUPABASE_URL
-    + "/rest/v1/users?username=eq."
-    + encodeURIComponent(username);
-  const h = Object.assign({}, supaHeaders(), { Prefer: "return=minimal" });
+  const url = SUPA_URL + "/rest/v1/users?username=eq." + encodeURIComponent(username);
   const r = await fetch(url, {
-    method: "PATCH",
-    headers: h,
-    body: JSON.stringify(fields),
+    method:  "PATCH",
+    headers: Object.assign({}, supaHeaders(), { Prefer: "return=minimal" }),
+    body:    JSON.stringify(fields),
   });
-  if (!r.ok) throw new Error("Gagal update data user");
+  if (!r.ok) throw new Error("Gagal update data user (status " + r.status + ")");
 }
 
 async function hashPassword(plain) {
@@ -73,18 +64,15 @@ async function sendOTPviaWA(noWA, otp, nama) {
     "Halo *" + nama + "*,",
     "",
     "Kode OTP Anda:",
-    "",
     "*" + otp + "*",
     "",
-    "Berlaku selama *10 menit*. Jangan bagikan kode ini kepada siapapun.",
-    "",
-    "Jika Anda tidak meminta reset password, abaikan pesan ini.",
+    "Berlaku *10 menit*. Jangan bagikan kode ini.",
   ].join("\n");
   try {
     const r = await fetch("https://api.fonnte.com/send", {
-      method: "POST",
+      method:  "POST",
       headers: { "Authorization": token, "Content-Type": "application/json" },
-      body: JSON.stringify({ target: nomor, message: pesan }),
+      body:    JSON.stringify({ target: nomor, message: pesan }),
     });
     const d = await r.json();
     return d.status !== false;
@@ -98,14 +86,22 @@ module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "POST")   return res.status(405).json({ error: "Method not allowed" });
+
+  // Cek ENV wajib
+  if (!SUPA_URL || !SUPA_KEY) {
+    return res.status(500).json({
+      error: "Konfigurasi server belum lengkap. Pastikan VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY sudah diset di Vercel.",
+    });
+  }
 
   const { action, username, otp, newPassword } = req.body || {};
   if (!username) return res.status(400).json({ error: "Username wajib diisi" });
 
+  // ── REQUEST OTP ──────────────────────────────────────────
   if (action === "request") {
     let user;
-    try { user = await getUser(username.toLowerCase().trim()); }
+    try   { user = await getUser(username.toLowerCase().trim()); }
     catch (e) { return res.status(500).json({ error: "Gagal membaca data: " + e.message }); }
 
     if (!user) return res.status(404).json({ error: "Username tidak ditemukan" });
@@ -113,13 +109,17 @@ module.exports = async function handler(req, res) {
     const code    = generateOTP();
     const expires = new Date(Date.now() + OTP_TTL_MS).toISOString();
 
-    try { await updateUser(user.username, { otp_code: code, otp_expires: expires }); }
+    try   { await updateUser(user.username, { otp_code: code, otp_expires: expires }); }
     catch (e) { return res.status(500).json({ error: "Gagal menyimpan OTP: " + e.message }); }
 
     if (user.noWA) {
       const sent = await sendOTPviaWA(user.noWA, code, user.nama || username);
       if (sent) {
-        return res.status(200).json({ channel: "wa", masked: maskPhone(user.noWA), nama: user.nama || username });
+        return res.status(200).json({
+          channel: "wa",
+          masked:  maskPhone(user.noWA),
+          nama:    user.nama || username,
+        });
       }
     }
 
@@ -127,21 +127,26 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ channel: "screen", code, nama: user.nama || username });
   }
 
+  // ── VERIFY OTP ───────────────────────────────────────────
   if (action === "verify") {
-    if (!otp || !newPassword) return res.status(400).json({ error: "OTP dan password baru wajib diisi" });
+    if (!otp || !newPassword)
+      return res.status(400).json({ error: "OTP dan password baru wajib diisi" });
 
     let user;
-    try { user = await getUser(username.toLowerCase().trim()); }
+    try   { user = await getUser(username.toLowerCase().trim()); }
     catch (e) { return res.status(500).json({ error: "Gagal membaca data: " + e.message }); }
 
-    if (!user)            return res.status(404).json({ error: "Username tidak ditemukan" });
-    if (!user.otp_code)   return res.status(400).json({ error: "OTP belum diminta atau sudah kedaluwarsa" });
-    if (new Date(user.otp_expires) < new Date()) return res.status(400).json({ error: "Kode OTP sudah kedaluwarsa. Minta kode baru." });
-    if (user.otp_code !== otp.trim()) return res.status(400).json({ error: "Kode OTP salah" });
-    if (newPassword.length < 6) return res.status(400).json({ error: "Password minimal 6 karakter" });
+    if (!user)          return res.status(404).json({ error: "Username tidak ditemukan" });
+    if (!user.otp_code) return res.status(400).json({ error: "OTP belum diminta atau sudah kedaluwarsa" });
+    if (new Date(user.otp_expires) < new Date())
+                        return res.status(400).json({ error: "Kode OTP sudah kedaluwarsa. Minta kode baru." });
+    if (user.otp_code !== otp.trim())
+                        return res.status(400).json({ error: "Kode OTP salah" });
+    if (newPassword.length < 6)
+                        return res.status(400).json({ error: "Password minimal 6 karakter" });
 
     const hashed = await hashPassword(newPassword);
-    try { await updateUser(user.username, { password: hashed, otp_code: null, otp_expires: null }); }
+    try   { await updateUser(user.username, { password: hashed, otp_code: null, otp_expires: null }); }
     catch (e) { return res.status(500).json({ error: "Gagal update password: " + e.message }); }
 
     return res.status(200).json({ ok: true });
