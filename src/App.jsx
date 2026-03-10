@@ -2978,7 +2978,7 @@ const TH={
       ...(role==="staf"?[{key:"jadwal",icon:"📅",label:"Jadwal"},{key:"penugasan",icon:"🎯",label:"Penugasan"}]:[]),
       ...(role==="admin_rk"?[{key:"form",icon:"✏️",label:"Input Jadwal"},{key:"jadwal",icon:"📅",label:"Jadwal Disetujui"},{key:"rk",icon:"📋",label:"Rencana Kegiatan"}]:[]),
       ...(KASUBBAG_ROLES.includes(role)?[{key:"jadwal",icon:"📋",label:"Antrian"},{key:"semua",icon:"🗓️",label:"Semua Jadwal"},{key:"penugasan",icon:"🎯",label:"Penugasan"}]:[]),
-      ...(role==="kabag"?[{key:"jadwal",icon:"📋",label:"Antrian"},{key:"semua",icon:"🗓️",label:"Semua Jadwal"},{key:"penugasan",icon:"🎯",label:"Penugasan"}]:[]),
+      ...(role==="kabag"?[{key:"jadwal",icon:"📋",label:"Antrian"},{key:"semua",icon:"🗓️",label:"Semua Jadwal"},{key:"penugasan",icon:"📊",label:"Evaluasi"}]:[]),
       ...((role==="ajudan_walikota"||role==="ajudan_wakilwalikota")?[{key:"ajudan",icon:"✅",label:"Konfirmasi"},{key:"jadwal",icon:"📅",label:"Jadwal"},{key:"penugasan",icon:"🎯",label:"Penugasan"}]:[]),
       ...(role==="timkom"?[{key:"jadwal",icon:"📅",label:"Jadwal"},{key:"penugasan",icon:"🎯",label:"Penugasan"}]:[]),
       ...(role==="walikota"||role==="wakilwalikota"?[{key:"jadwal",icon:"📅",label:"Jadwal Saya"}]:[]),
@@ -3034,7 +3034,7 @@ const TH={
     ...(role==="staf"?[{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"penugasan",label:"Penugasan",icon:"🎯"}]:[]),
     ...(role==="admin_rk"?[{key:"form",label:"Input",icon:"✏️"},{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"rk",label:"RK",icon:"📋"}]:[]),
     ...(KASUBBAG_ROLES.includes(role)?[{key:"jadwal",label:"Antrian",icon:"📋"},{key:"semua",label:"Jadwal",icon:"🗓️"},{key:"penugasan",label:"Penugasan",icon:"🎯"}]:[]),
-    ...(role==="kabag"?[{key:"jadwal",label:"Antrian",icon:"📋"},{key:"semua",label:"Jadwal",icon:"🗓️"},{key:"penugasan",label:"Penugasan",icon:"🎯"}]:[]),
+    ...(role==="kabag"?[{key:"jadwal",label:"Antrian",icon:"📋"},{key:"semua",label:"Jadwal",icon:"🗓️"},{key:"penugasan",label:"Evaluasi",icon:"📊"}]:[]),
     ...((role==="ajudan_walikota"||role==="ajudan_wakilwalikota")?[{key:"ajudan",label:"Konfirmasi",icon:"✅"},{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"penugasan",label:"Penugasan",icon:"🎯"}]:[]),
     ...(role==="timkom"?[{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"penugasan",label:"Penugasan",icon:"🎯"}]:[]),
     ...(role==="walikota"||role==="wakilwalikota"?[{key:"jadwal",label:"Jadwal",icon:"📅"}]:[]),
@@ -3291,9 +3291,9 @@ function PenugasanSayaView({events, user, onOpenEvaluasi, isMobile}){
       {/* AKAN DATANG */}
       {upcoming.length>0&&<>
         <div style={{fontSize:11,fontWeight:800,color:NAVY,letterSpacing:1.2,textTransform:"uppercase",marginBottom:8,display:"flex",alignItems:"center",gap:6}}>
-          <span>📅</span> Penugasan Mendatang
+          <span>{user.role==="kabag"?"📊":"📅"}</span> {user.role==="kabag"?"Kegiatan Mendatang":"Penugasan Mendatang"}
         </div>
-        {upcoming.map(ev=><PenCard key={ev.id} ev={ev} isMyTask={true}/>)}
+        {upcoming.map(ev=><PenCard key={ev.id} ev={ev} isMyTask={(ev.personil||[]).includes(user.username)}/>)}
       </>}
 
       {upcoming.length===0&&past.length===0&&(
@@ -3309,7 +3309,7 @@ function PenugasanSayaView({events, user, onOpenEvaluasi, isMobile}){
         <div style={{fontSize:11,fontWeight:800,color:"#64748B",letterSpacing:1.2,textTransform:"uppercase",margin:"18px 0 8px",display:"flex",alignItems:"center",gap:6}}>
           <span>📁</span> Riwayat Penugasan
         </div>
-        {past.map(ev=><PenCard key={ev.id} ev={ev} isMyTask={true}/>)}
+        {past.map(ev=><PenCard key={ev.id} ev={ev} isMyTask={(ev.personil||[]).includes(user.username)}/>)}
       </>}
 
       {/* SEMUA JADWAL DISETUJUI */}
@@ -4686,6 +4686,28 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
         </div>}
       </div>
 
+      {/* REKAN KERJA — tampilkan untuk staf & timkom yang ditugaskan */}
+      {["staf","timkom"].includes(role)&&(ev.personil||[]).includes(user.username)&&ev.alur==="disetujui"&&<div style={{marginBottom:12,padding:"11px 14px",borderRadius:11,background:"linear-gradient(90deg,#ECFDF5,#F0FDF4)",border:"1.5px solid #6EE7B7"}}>
+        <div style={{fontSize:10,fontWeight:800,color:"#065F46",letterSpacing:1,textTransform:"uppercase",marginBottom:8,display:"flex",alignItems:"center",gap:5}}>
+          🎯 Tim Bertugas di Acara Ini
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:5}}>
+          {(ev.personil||[]).map(un=>{
+            const isMe=un===user.username;
+            const u=loadUsers().find(x=>x.username===un);
+            const nama=u?.nama||un;
+            const roleLabel=(u?.role||"").replace(/_/g," ");
+            return <div key={un} style={{display:"flex",alignItems:"center",gap:9,padding:"6px 10px",borderRadius:8,background:isMe?"#D1FAE5":"white",border:"1px solid "+(isMe?"#A7F3D0":"#E2E8F0")}}>
+              <div style={{width:28,height:28,borderRadius:8,background:isMe?"#059669":NAVY,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"white",flexShrink:0}}>{nama.slice(0,1)}</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:12,fontWeight:isMe?800:600,color:isMe?"#065F46":"#1E293B"}}>{nama}{isMe?" — Anda":""}</div>
+                <div style={{fontSize:10,color:"#94A3B8",textTransform:"capitalize"}}>{roleLabel}</div>
+              </div>
+            </div>;
+          })}
+          {ev.catatanPenugasan&&<div style={{marginTop:5,padding:"6px 10px",background:"#EEF2FF",borderRadius:8,fontSize:11,color:"#4338CA",fontStyle:"italic"}}>💬 Catatan: {ev.catatanPenugasan}</div>}
+        </div>
+      </div>}
       {/* ADMIN RK ACTIONS — hierarki: Primary → Secondary → Destructive */}
       {role==="admin_rk"&&<div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:8}}>
         {/* ── DRAFT: Kirim (primary) + Edit (secondary) ── */}
