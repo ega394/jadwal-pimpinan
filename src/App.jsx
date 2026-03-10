@@ -1231,7 +1231,7 @@ function NotifTab({user,showT}){
 // ==================== PROFILE MODAL (ganti username & password) ====================
 function ProfileModal({user,onClose,showT}){
   const[tabP,setTabP]=useState("profile");
-  const[form,setForm]=useState({nama:user.nama,jabatan:user.jabatan});
+  const[form,setForm]=useState({nama:user.nama,jabatan:user.jabatan,noWA:user.noWA||""});
   const[pw,setPw]=useState({old:"",next:"",confirm:""});
   const[uname,setUname]=useState({newUsername:"",pwConfirm:""});
   const[err,setErr]=useState("");
@@ -1239,8 +1239,8 @@ function ProfileModal({user,onClose,showT}){
 
   const saveProfile=()=>{
     setErr("");if(!form.nama.trim())return setErr("Nama wajib diisi.");
-    const users=loadUsers();const updated=users.map(u=>u.username===user.username?{...u,nama:form.nama,jabatan:form.jabatan}:u);
-    saveUsers(updated);showT("Profil disimpan ✓");onClose({...user,nama:form.nama,jabatan:form.jabatan});
+    const users=loadUsers();const updated=users.map(u=>u.username===user.username?{...u,nama:form.nama,jabatan:form.jabatan,noWA:form.noWA}:u);
+    saveUsers(updated);showT("Profil disimpan ✓");onClose({...user,nama:form.nama,jabatan:form.jabatan,noWA:form.noWA});
   };
   const changePassword=async()=>{
     setErr("");
@@ -1284,7 +1284,7 @@ function ProfileModal({user,onClose,showT}){
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px 20px"}}>
         {err&&<div style={{background:"#fee2e2",borderRadius:8,padding:"9px 12px",marginBottom:12,fontSize:13,color:"#991b1b"}}>{err}</div>}
-        {tabP==="profile"&&<><div style={{marginBottom:12}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Nama Lengkap</label><input value={form.nama} onChange={e=>setForm(p=>({...p,nama:e.target.value}))} style={inp}/></div><div style={{marginBottom:16}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Jabatan</label><input value={form.jabatan} onChange={e=>setForm(p=>({...p,jabatan:e.target.value}))} style={inp}/></div><button onClick={saveProfile} style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:14,fontWeight:700}}>Simpan Profil</button></>}
+        {tabP==="profile"&&<><div style={{marginBottom:12}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Nama Lengkap</label><input value={form.nama} onChange={e=>setForm(p=>({...p,nama:e.target.value}))} style={inp}/></div><div style={{marginBottom:12}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Jabatan</label><input value={form.jabatan} onChange={e=>setForm(p=>({...p,jabatan:e.target.value}))} style={inp}/></div><div style={{marginBottom:16}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>No. WhatsApp</label><input value={form.noWA} onChange={e=>setForm(p=>({...p,noWA:e.target.value}))} placeholder="08123456789" style={inp}/><div style={{fontSize:11,color:"#94a3b8",marginTop:3}}>📱 Digunakan untuk menerima kode OTP reset password</div></div><button onClick={saveProfile} style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:14,fontWeight:700}}>Simpan Profil</button></>}
         {tabP==="password"&&<><div style={{marginBottom:12}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Password Lama</label><input type="password" value={pw.old} onChange={e=>setPw(p=>({...p,old:e.target.value}))} style={inp}/></div><div style={{marginBottom:12}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Password Baru (min. 6 karakter)</label><input type="password" value={pw.next} onChange={e=>setPw(p=>({...p,next:e.target.value}))} style={inp}/></div><div style={{marginBottom:16}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Konfirmasi Password Baru</label><input type="password" value={pw.confirm} onChange={e=>setPw(p=>({...p,confirm:e.target.value}))} style={inp}/></div><button onClick={changePassword} style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:GREEN,color:"white",cursor:"pointer",fontSize:14,fontWeight:700}}>Ubah Password</button></>}
         {tabP==="username"&&<><div style={{background:"#fef3c7",borderRadius:9,padding:"9px 12px",marginBottom:14,fontSize:13,color:"#92400e",border:"1px solid #fde68a"}}>Setelah ubah username, Anda akan diminta login ulang.</div><div style={{marginBottom:12}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Username Baru</label><input value={uname.newUsername} onChange={e=>setUname(p=>({...p,newUsername:e.target.value}))} autoCapitalize="none" style={inp}/></div><div style={{marginBottom:16}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Konfirmasi dengan Password Anda</label><input type="password" value={uname.pwConfirm} onChange={e=>setUname(p=>({...p,pwConfirm:e.target.value}))} style={inp}/></div><button onClick={changeUsername} style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:"#d97706",color:"white",cursor:"pointer",fontSize:14,fontWeight:700}}>Ubah Username</button></>}
         {tabP==="biometric"&&<BiometricTab user={user} showT={showT}/>}
@@ -1568,6 +1568,7 @@ function AdminModal({onClose,showT}){
         {editUser&&<div style={{background:"#EBF0FA",borderRadius:12,padding:14,marginTop:8,border:"1.5px solid "+NAVY}}>
           <div style={{fontSize:13,fontWeight:700,color:NAVY,marginBottom:10}}>Edit: {editUser.username}</div>
           {[{k:"nama",l:"Nama"},{k:"jabatan",l:"Jabatan"}].map(f=><div key={f.k} style={{marginBottom:8}}><label style={{display:"block",fontSize:11,color:"#64748b",fontWeight:600,marginBottom:2}}>{f.l}</label><input value={editUser[f.k]||""} onChange={e=>setEditUser(p=>({...p,[f.k]:e.target.value}))} style={inp}/></div>)}
+          <div style={{marginBottom:8}}><label style={{display:"block",fontSize:11,color:"#64748b",fontWeight:600,marginBottom:2}}>No. WhatsApp</label><input value={editUser.noWA||""} onChange={e=>setEditUser(p=>({...p,noWA:e.target.value}))} placeholder="08123456789" style={inp}/><div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>📱 Untuk OTP reset password</div></div>
           <div style={{marginBottom:8}}><label style={{display:"block",fontSize:11,color:"#64748b",fontWeight:600,marginBottom:2}}>Password Baru (kosong = tidak ubah)</label><input type="password" placeholder="Isi untuk reset password" onChange={e=>setEditUser(p=>({...p,_newPw:e.target.value||undefined}))} style={inp}/></div>
             <div style={{background:"#fef9c3",borderRadius:7,padding:"7px 10px",fontSize:11,color:"#92400e",marginBottom:6}}>💡 Kabag bisa reset password langsung dari sini tanpa OTP.</div>
           <div style={{marginBottom:12}}><label style={{display:"block",fontSize:11,color:"#64748b",fontWeight:600,marginBottom:2}}>Role / Hak Akses</label><select value={editUser.role} onChange={e=>setEditUser(p=>({...p,role:e.target.value}))} style={{...inp,WebkitAppearance:"none"}}>{ALL_ROLE_DEFS.map(r=><option key={r.key} value={r.key}>{r.label}</option>)}</select></div>
