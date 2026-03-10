@@ -1418,7 +1418,7 @@ function ApprovalQueueView({events,role,upd,showT,askConfirm,isMobile}){
         <textarea placeholder="Catatan perbaikan..." value={rejectTexts[ev.id+"_recall"]||""} onChange={e=>setRT(p=>({...p,[ev.id+"_recall"]:e.target.value}))} rows={1} style={{flex:1,padding:"6px 10px",borderRadius:7,border:"1.5px solid #fde68a",fontSize:11,resize:"none",boxSizing:"border-box"}}/>
         <button onClick={()=>askConfirm("Batalkan Tayang?","Jadwal ini akan ditarik dan dikembalikan ke Kasubbag untuk perbaikan.",()=>{upd(ev.id,{alur:"menunggu_kasubbag",catatanKabag:rejectTexts[ev.id+"_recall"]||"Perlu perbaikan"});showT("Jadwal ditarik & dikembalikan","warn");},"Tarik","#f59e0b")} style={{padding:"6px 12px",borderRadius:7,border:"1.5px solid #f59e0b",background:"white",color:"#b45309",cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>↩ Batalkan Tayang</button>
       </div>}
-      {isKasubbag&&ev.alur==="menunggu_kasubbag"&&ev.catatanKabag&&<div style={{marginTop:6,padding:"5px 10px",background:"#fffbeb",borderRadius:7,fontSize:11,color:"#b45309",border:"1px solid #fde68a"}}>📝 Catatan Kabag: {ev.catatanKabag}</div>}
+      {isKasubbag&&ev.alur==="menunggu_kasubbag"&&ev.catatanKabag&&<div style={{marginTop:6,padding:"5px 10px",background:ev._kabagRecall?"#FEF2F2":"#fffbeb",borderRadius:7,fontSize:11,color:ev._kabagRecall?"#991B1B":"#b45309",border:"1px solid "+(ev._kabagRecall?"#FECACA":"#fde68a"),fontWeight:600}}>{ev._kabagRecall?"↩ Ditarik Kabag: ":"📝 Catatan Kabag: "}{ev.catatanKabag}</div>}
     </div>)}</>}
   </div>;
 }
@@ -2977,7 +2977,7 @@ const TH={
     {label:"MENU UTAMA",items:[
       ...(role==="staf"?[{key:"jadwal",icon:"📅",label:"Jadwal"},{key:"penugasan",icon:"🎯",label:"Penugasan"}]:[]),
       ...(role==="admin_rk"?[{key:"form",icon:"✏️",label:"Input Jadwal"},{key:"jadwal",icon:"📅",label:"Jadwal Disetujui"},{key:"rk",icon:"📋",label:"Rencana Kegiatan"}]:[]),
-      ...(KASUBBAG_ROLES.includes(role)?[{key:"jadwal",icon:"📋",label:"Antrian"},{key:"semua",icon:"🗓️",label:"Semua Jadwal"},{key:"penugasan",icon:"🎯",label:"Penugasan"}]:[]),
+      ...(KASUBBAG_ROLES.includes(role)?[{key:"jadwal",icon:"📋",label:"Antrian"},{key:"semua",icon:"🗓️",label:"Semua Jadwal"},{key:"penugasan",icon:"📊",label:"Evaluasi"}]:[]),
       ...(role==="kabag"?[{key:"jadwal",icon:"📋",label:"Antrian"},{key:"semua",icon:"🗓️",label:"Semua Jadwal"},{key:"penugasan",icon:"📊",label:"Evaluasi"}]:[]),
       ...((role==="ajudan_walikota"||role==="ajudan_wakilwalikota")?[{key:"ajudan",icon:"✅",label:"Konfirmasi"},{key:"jadwal",icon:"📅",label:"Jadwal"},{key:"penugasan",icon:"🎯",label:"Penugasan"}]:[]),
       ...(role==="timkom"?[{key:"jadwal",icon:"📅",label:"Jadwal"},{key:"penugasan",icon:"🎯",label:"Penugasan"}]:[]),
@@ -3033,7 +3033,7 @@ const TH={
   const mobTabs=[
     ...(role==="staf"?[{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"penugasan",label:"Penugasan",icon:"🎯"}]:[]),
     ...(role==="admin_rk"?[{key:"form",label:"Input",icon:"✏️"},{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"rk",label:"RK",icon:"📋"}]:[]),
-    ...(KASUBBAG_ROLES.includes(role)?[{key:"jadwal",label:"Antrian",icon:"📋"},{key:"semua",label:"Jadwal",icon:"🗓️"},{key:"penugasan",label:"Penugasan",icon:"🎯"}]:[]),
+    ...(KASUBBAG_ROLES.includes(role)?[{key:"jadwal",label:"Antrian",icon:"📋"},{key:"semua",label:"Jadwal",icon:"🗓️"},{key:"penugasan",label:"Evaluasi",icon:"📊"}]:[]),
     ...(role==="kabag"?[{key:"jadwal",label:"Antrian",icon:"📋"},{key:"semua",label:"Jadwal",icon:"🗓️"},{key:"penugasan",label:"Evaluasi",icon:"📊"}]:[]),
     ...((role==="ajudan_walikota"||role==="ajudan_wakilwalikota")?[{key:"ajudan",label:"Konfirmasi",icon:"✅"},{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"penugasan",label:"Penugasan",icon:"🎯"}]:[]),
     ...(role==="timkom"?[{key:"jadwal",label:"Jadwal",icon:"📅"},{key:"penugasan",label:"Penugasan",icon:"🎯"}]:[]),
@@ -3808,6 +3808,356 @@ function NotifCenter({events, user, onClose, isMobile}){
 }
 
 // ═══════════════════════════════════════════════════════
+// REKAP EVALUASI — Composite Performance Index (CPI)
+// Metodologi: Temporal-Weighted IPS + Consistency + Trend
+// ═══════════════════════════════════════════════════════
+const EVAL_PROTOKOL_KEYS=["Persiapan tata acara","Pengaturan posisi & alur","Koordinasi lapangan","Pelaksanaan rundown","Penanganan kendala"];
+const EVAL_KOMINFO_KEYS=["Tangkapan foto/video","Koordinasi protokol","Kesiapan peralatan","Kecepatan publikasi","Kelayakan dokumentasi"];
+
+function calcCPI(evList,username){
+  // Kumpulkan semua evaluasi dari user ini yang sudah submitted
+  const records=evList
+    .filter(e=>(e.evaluasi||{})[username]?.submitted)
+    .map(e=>({
+      date:new Date(e.tanggal),
+      scores:[0,1,2,3,4].map(i=>(e.evaluasi[username]["s"+i]??60)),
+      tipe:(e.evaluasi[username].tipe||"Protokol"),
+      eventName:e.namaAcara,
+      savedAt:e.evaluasi[username].savedAt,
+    }))
+    .sort((a,b)=>a.date-b.date);
+
+  if(records.length===0)return null;
+
+  // 1. Per-event mean score
+  const eventScores=records.map(r=>r.scores.reduce((a,b)=>a+b,0)/r.scores.length);
+
+  // 2. Temporal weighting: w_t = e^(-λ·ΔMonths), λ=0.08 ≈ ~12 bulan half-life
+  const now=new Date();
+  const λ=0.08;
+  const weights=records.map(r=>{
+    const monthsAgo=(now-r.date)/(1000*60*60*24*30.44);
+    return Math.exp(-λ*monthsAgo);
+  });
+  const wSum=weights.reduce((a,b)=>a+b,0);
+  const WPS=weights.reduce((acc,w,i)=>acc+w*eventScores[i],0)/wSum;
+
+  // 3. Consistency: Coefficient of Variation → Consistency Score (CS)
+  const mean=eventScores.reduce((a,b)=>a+b,0)/eventScores.length;
+  const variance=eventScores.reduce((a,s)=>a+(s-mean)**2,0)/eventScores.length;
+  const stdDev=Math.sqrt(variance);
+  const CV=mean>0?stdDev/mean:0;
+  const CS=Math.max(0,100*(1-CV)); // 100 = perfect consistency
+
+  // 4. Trend: Linear regression slope (normalized per event)
+  let trendScore=50; // neutral
+  if(records.length>=3){
+    const n=eventScores.length;
+    const xMean=(n-1)/2;
+    const yMean=mean;
+    const num=eventScores.reduce((a,y,x)=>a+(x-xMean)*(y-yMean),0);
+    const den=eventScores.reduce((a,_,x)=>a+(x-xMean)**2,0);
+    const slope=den!==0?num/den:0;
+    // Normalize: slope per step → convert to 0-100 range (±20 = extreme)
+    trendScore=Math.min(100,Math.max(0,50+slope*2.5));
+  }
+
+  // 5. Composite Performance Index (CPI)
+  // Bobot: WPS 60% · CS 25% · Trend 15%
+  const CPI=Math.round(0.60*WPS + 0.25*CS + 0.15*trendScore);
+
+  // 6. Per-kriteria rata-rata (weighted)
+  const nKriteria=5;
+  const kriteriaScores=Array(nKriteria).fill(0).map((_,k)=>{
+    const wS=records.reduce((a,r,i)=>a+weights[i]*r.scores[k],0);
+    return Math.round(wS/wSum);
+  });
+
+  // 7. Grade
+  const grade=CPI>=85?"A":CPI>=70?"B":CPI>=55?"C":CPI>=40?"D":"E";
+  const gradeColor=CPI>=85?"#065F46":CPI>=70?"#1D4ED8":CPI>=55?"#D97706":CPI>=40?"#B45309":"#991B1B";
+  const gradeBg=CPI>=85?"#D1FAE5":CPI>=70?"#DBEAFE":CPI>=55?"#FEF3C7":CPI>=40?"#FEF9C3":"#FEE2E2";
+
+  return{
+    records,eventScores,WPS:Math.round(WPS),CS:Math.round(CS),
+    trendScore:Math.round(trendScore),CPI,grade,gradeColor,gradeBg,
+    tipe:records[records.length-1]?.tipe||"Protokol",
+    kriteriaScores,stdDev:Math.round(stdDev),
+    trend:trendScore>60?"naik":trendScore<40?"turun":"stabil",
+  };
+}
+
+function RekapEvaluasi({events,user,isMobile}){
+  const NAVY="#0A1628",GOLD="#C9A84C",GREEN="#0D6B4F";
+  const [selected,setSelected]=React.useState(null); // username detail
+  const [filterTipe,setFilterTipe]=React.useState("semua"); // semua|Protokol|Kominfo
+  const [filterPeriod,setFilterPeriod]=React.useState("semua"); // semua|bulan|triwulan|semester
+
+  const allUsers=loadUsers();
+
+  // Ambil semua user yang punya evaluasi
+  const evaluators=React.useMemo(()=>{
+    const result=[];
+    allUsers.forEach(u=>{
+      const rel=filterTipe==="semua"
+        ?events
+        :events.filter(e=>Object.values(e.evaluasi||{}).some(v=>v.tipe===filterTipe));
+
+      // Filter periode
+      const now=new Date();
+      const filtered=rel.filter(e=>{
+        if(filterPeriod==="semua")return true;
+        const d=new Date(e.tanggal);
+        const monthsAgo=(now-d)/(1000*60*60*24*30.44);
+        if(filterPeriod==="bulan")return monthsAgo<=1;
+        if(filterPeriod==="triwulan")return monthsAgo<=3;
+        if(filterPeriod==="semester")return monthsAgo<=6;
+        return true;
+      });
+
+      const cpi=calcCPI(filtered,u.username);
+      if(cpi)result.push({...u,cpi});
+    });
+    return result.sort((a,b)=>b.cpi.CPI-a.cpi.CPI);
+  },[events,allUsers,filterTipe,filterPeriod]);
+
+  const selectedUser=selected?evaluators.find(u=>u.username===selected):null;
+
+  // Ring chart SVG sederhana
+  const Ring=({value,size=52,stroke=7,color="#065F46"})=>{
+    const r=(size-stroke)/2;
+    const circ=2*Math.PI*r;
+    const filled=circ*(value/100);
+    return(
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{flexShrink:0}}>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#F1F5F9" strokeWidth={stroke}/>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+          strokeDasharray={`${filled} ${circ}`} strokeLinecap="round"
+          transform={`rotate(-90 ${size/2} ${size/2})`}/>
+        <text x={size/2} y={size/2+1} textAnchor="middle" dominantBaseline="middle"
+          fill={color} fontSize={size*0.22} fontWeight="900">{value}</text>
+      </svg>
+    );
+  };
+
+  // Sparkline SVG
+  const Sparkline=({scores,color="#1D4ED8",w=80,h=28})=>{
+    if(scores.length<2)return null;
+    const mn=Math.min(...scores),mx=Math.max(...scores);
+    const range=mx-mn||1;
+    const pts=scores.map((s,i)=>{
+      const x=i*(w/(scores.length-1));
+      const y=h-(((s-mn)/range)*(h-6)+3);
+      return`${x},${y}`;
+    }).join(" ");
+    const lastX=(scores.length-1)*(w/(scores.length-1));
+    const lastY=h-(((scores[scores.length-1]-mn)/range)*(h-6)+3);
+    return(
+      <svg width={w} height={h} style={{overflow:"visible"}}>
+        <polyline points={pts} fill="none" stroke={color+"55"} strokeWidth={1.5}/>
+        <polyline points={pts} fill="none" stroke={color} strokeWidth={1.5} strokeDasharray="none"/>
+        <circle cx={lastX} cy={lastY} r={3} fill={color}/>
+      </svg>
+    );
+  };
+
+  // Detail view untuk 1 user
+  if(selectedUser){
+    const{cpi,nama,jabatan,role:uRole}=selectedUser;
+    const keys=cpi.tipe==="Kominfo"?EVAL_KOMINFO_KEYS:EVAL_PROTOKOL_KEYS;
+    return(
+      <div style={{padding:isMobile?"12px 14px":"20px 28px",overflowY:"auto",flex:1,background:"#F4F7FF"}}>
+        <button onClick={()=>setSelected(null)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 12px",borderRadius:8,border:"1.5px solid #E2E8F0",background:"white",color:"#334155",cursor:"pointer",fontSize:12,fontWeight:700,marginBottom:16}}>
+          ← Kembali ke Rekap
+        </button>
+        {/* Header Individu */}
+        <div style={{background:`linear-gradient(135deg,${NAVY},#1A2F50)`,borderRadius:16,padding:"20px",marginBottom:16,position:"relative",overflow:"hidden"}}>
+          <div style={{position:"absolute",top:-20,right:-20,width:100,height:100,borderRadius:"50%",background:"rgba(201,168,76,0.1)"}}/>
+          <div style={{display:"flex",alignItems:"center",gap:16}}>
+            <div style={{width:52,height:52,borderRadius:14,background:cpi.gradeBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,fontWeight:900,color:cpi.gradeColor,flexShrink:0}}>{cpi.grade}</div>
+            <div style={{flex:1}}>
+              <div style={{color:"white",fontSize:17,fontWeight:900}}>{nama}</div>
+              <div style={{color:"rgba(255,255,255,0.6)",fontSize:11,marginTop:2}}>{jabatan} · {cpi.tipe} · {cpi.records.length} kegiatan dievaluasi</div>
+            </div>
+            <Ring value={cpi.CPI} size={64} stroke={8} color={cpi.gradeColor}/>
+          </div>
+          <div style={{display:"flex",gap:8,marginTop:16,flexWrap:"wrap"}}>
+            {[
+              {l:"WPS",v:cpi.WPS,desc:"Weighted Perf. Score",tip:"Rata-rata tertimbang waktu"},
+              {l:"CS",v:cpi.CS,desc:"Consistency Score",tip:"Keajegan antar kegiatan"},
+              {l:"Tren",v:cpi.trendScore,desc:cpi.trend==="naik"?"↑ Meningkat":cpi.trend==="turun"?"↓ Menurun":"→ Stabil",tip:"Arah tren performa"},
+            ].map(m=>(
+              <div key={m.l} style={{flex:1,minWidth:80,background:"rgba(255,255,255,0.1)",borderRadius:10,padding:"10px 12px"}}>
+                <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>{m.l}</div>
+                <div style={{fontSize:20,fontWeight:900,color:"white",lineHeight:1.1}}>{m.v}</div>
+                <div style={{fontSize:10,color:"rgba(255,255,255,0.6)",marginTop:2}}>{m.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Metodologi */}
+        <div style={{background:"white",borderRadius:12,padding:"14px 16px",marginBottom:14,border:"1px solid #E2E8F0"}}>
+          <div style={{fontSize:11,fontWeight:800,color:NAVY,letterSpacing:1,textTransform:"uppercase",marginBottom:10}}>📐 Metodologi Skoring CPI</div>
+          <div style={{fontSize:11,color:"#475569",lineHeight:1.8}}>
+            <span style={{fontWeight:700,color:NAVY}}>CPI</span> = 0.60 × WPS + 0.25 × CS + 0.15 × Tren<br/>
+            <span style={{color:"#94A3B8",fontSize:10}}>
+              · <b>WPS</b>: Rata-rata tertimbang waktu (λ=0.08/bln, bobot lebih besar pada kegiatan terbaru)<br/>
+              · <b>CS</b>: 100×(1−CV) di mana CV=σ/μ (simpangan baku dibagi rata-rata)<br/>
+              · <b>Tren</b>: Regresi linier skor per kegiatan, dinormalisasi ke 0–100
+            </span>
+          </div>
+          <div style={{display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}>
+            {[["A","≥85","#065F46","#D1FAE5"],["B","≥70","#1D4ED8","#DBEAFE"],["C","≥55","#D97706","#FEF3C7"],["D","≥40","#B45309","#FEF9C3"],["E","<40","#991B1B","#FEE2E2"]].map(([g,r,c,bg])=>(
+              <div key={g} style={{padding:"3px 10px",borderRadius:6,background:bg,color:c,fontSize:11,fontWeight:700,border:`1px solid ${c}22`}}>{g} {r}</div>
+            ))}
+          </div>
+        </div>
+
+        {/* Per Kriteria */}
+        <div style={{background:"white",borderRadius:12,padding:"14px 16px",marginBottom:14,border:"1px solid #E2E8F0"}}>
+          <div style={{fontSize:11,fontWeight:800,color:NAVY,letterSpacing:1,textTransform:"uppercase",marginBottom:12}}>🎯 Skor Per Kriteria (Rata-rata Tertimbang)</div>
+          {keys.map((k,i)=>{
+            const s=cpi.kriteriaScores[i];
+            const barColor=s>=80?"#059669":s>=60?"#2563EB":s>=40?"#D97706":"#DC2626";
+            return(
+              <div key={i} style={{marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                  <span style={{fontSize:12,color:"#334155",fontWeight:600}}>{i+1}. {k}</span>
+                  <span style={{fontSize:12,fontWeight:800,color:barColor}}>{s}</span>
+                </div>
+                <div style={{height:8,borderRadius:6,background:"#F1F5F9",overflow:"hidden"}}>
+                  <div style={{height:"100%",width:s+"%",background:barColor,borderRadius:6,transition:"width 0.6s ease"}}/>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Riwayat per kegiatan */}
+        <div style={{background:"white",borderRadius:12,padding:"14px 16px",border:"1px solid #E2E8F0"}}>
+          <div style={{fontSize:11,fontWeight:800,color:NAVY,letterSpacing:1,textTransform:"uppercase",marginBottom:12}}>📋 Riwayat Evaluasi per Kegiatan</div>
+          {cpi.records.map((r,i)=>{
+            const s=Math.round(cpi.eventScores[i]);
+            const c=s>=80?"#059669":s>=60?"#2563EB":s>=40?"#D97706":"#DC2626";
+            return(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"9px 12px",borderRadius:10,background:i%2===0?"#F8FAFC":"white",marginBottom:4,border:"1px solid #F1F5F9"}}>
+                <div style={{width:36,textAlign:"center",flexShrink:0}}>
+                  <div style={{fontSize:15,fontWeight:900,color:NAVY}}>{r.date.getDate()}</div>
+                  <div style={{fontSize:9,color:"#94A3B8"}}>{r.date.toLocaleDateString("id-ID",{month:"short"})}</div>
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:700,color:"#1E293B",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.eventName}</div>
+                  <div style={{fontSize:10,color:"#94A3B8",marginTop:1}}>{r.tipe}</div>
+                </div>
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  <div style={{fontSize:16,fontWeight:900,color:c}}>{s}</div>
+                  <div style={{fontSize:9,color:"#94A3B8"}}>/100</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  return(
+    <div style={{padding:isMobile?"12px 14px":"20px 28px",overflowY:"auto",flex:1,background:"#F4F7FF"}}>
+      {/* Header */}
+      <div style={{background:`linear-gradient(135deg,${NAVY},#1A2F50)`,borderRadius:16,padding:"20px",marginBottom:16,position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",top:-20,right:-20,width:120,height:120,borderRadius:"50%",background:"rgba(201,168,76,0.08)"}}/>
+        <div style={{color:GOLD,fontSize:11,fontWeight:800,letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>Rekap Kinerja</div>
+        <div style={{color:"white",fontSize:isMobile?16:20,fontWeight:900,marginBottom:3}}>Evaluasi Berkelanjutan</div>
+        <div style={{color:"rgba(255,255,255,0.55)",fontSize:11}}>{evaluators.length} personil · {events.filter(e=>Object.keys(e.evaluasi||{}).length>0).length} kegiatan terevaluasi</div>
+      </div>
+
+      {/* Filter */}
+      <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:4,background:"white",padding:"4px",borderRadius:10,border:"1px solid #E2E8F0"}}>
+          {["semua","Protokol","Kominfo"].map(t=>(
+            <button key={t} onClick={()=>setFilterTipe(t)} style={{padding:"5px 12px",borderRadius:8,border:"none",background:filterTipe===t?NAVY:"transparent",color:filterTipe===t?"white":"#64748B",cursor:"pointer",fontSize:11,fontWeight:700,transition:"all 0.15s"}}>
+              {t==="semua"?"Semua Tipe":t}
+            </button>
+          ))}
+        </div>
+        <div style={{display:"flex",gap:4,background:"white",padding:"4px",borderRadius:10,border:"1px solid #E2E8F0"}}>
+          {[["semua","Semua"],["bulan","30 Hari"],["triwulan","3 Bulan"],["semester","6 Bulan"]].map(([v,l])=>(
+            <button key={v} onClick={()=>setFilterPeriod(v)} style={{padding:"5px 12px",borderRadius:8,border:"none",background:filterPeriod===v?NAVY:"transparent",color:filterPeriod===v?"white":"#64748B",cursor:"pointer",fontSize:11,fontWeight:700,transition:"all 0.15s"}}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {evaluators.length===0&&<div style={{textAlign:"center",padding:"60px 24px",background:"white",borderRadius:16}}>
+        <div style={{fontSize:40,marginBottom:10}}>📊</div>
+        <div style={{fontSize:14,fontWeight:700,color:"#475569"}}>Belum ada data evaluasi</div>
+        <div style={{fontSize:12,color:"#94A3B8",marginTop:4}}>Data akan muncul setelah personil mengisi evaluasi pasca kegiatan</div>
+      </div>}
+
+      {/* Podium top 3 */}
+      {evaluators.length>=2&&<div style={{display:"flex",gap:8,marginBottom:14,alignItems:"flex-end"}}>
+        {[1,0,2].filter(i=>evaluators[i]).map(i=>{
+          const u=evaluators[i];
+          const isFirst=i===0;
+          return(
+            <div key={u.username} onClick={()=>setSelected(u.username)} style={{flex:isFirst?1.2:1,background:"white",borderRadius:14,padding:"12px 10px",textAlign:"center",cursor:"pointer",border:`2px solid ${isFirst?GOLD:"#E2E8F0"}`,boxShadow:isFirst?"0 4px 16px rgba(10,22,40,0.15)":"none",transform:isFirst?"translateY(-4px)":"none",transition:"transform 0.2s"}}>
+              <div style={{fontSize:isFirst?22:18,marginBottom:4}}>{i===0?"🥇":i===1?"🥈":"🥉"}</div>
+              <Ring value={u.cpi.CPI} size={isFirst?56:46} stroke={isFirst?8:6} color={u.cpi.gradeColor}/>
+              <div style={{fontSize:11,fontWeight:800,color:NAVY,marginTop:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.nama.split(" ")[0]}</div>
+              <div style={{padding:"2px 8px",borderRadius:5,background:u.cpi.gradeBg,color:u.cpi.gradeColor,fontSize:10,fontWeight:800,display:"inline-block",marginTop:4}}>{u.cpi.grade}</div>
+            </div>
+          );
+        })}
+      </div>}
+
+      {/* Tabel lengkap */}
+      <div style={{background:"white",borderRadius:14,overflow:"hidden",border:"1px solid #E2E8F0"}}>
+        <div style={{padding:"12px 16px",borderBottom:"1px solid #F1F5F9",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:12,fontWeight:800,color:NAVY,letterSpacing:0.5}}>Peringkat Individu</div>
+          <div style={{fontSize:10,color:"#94A3B8"}}>CPI = 0.6×WPS + 0.25×CS + 0.15×Tren</div>
+        </div>
+        {evaluators.map((u,idx)=>{
+          const{cpi}=u;
+          return(
+            <div key={u.username} onClick={()=>setSelected(u.username)} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",borderBottom:"1px solid #F8FAFC",cursor:"pointer",background:idx%2===0?"white":"#FAFBFF",transition:"background 0.15s"}}
+              onMouseEnter={e=>e.currentTarget.style.background="#EFF6FF"}
+              onMouseLeave={e=>e.currentTarget.style.background=idx%2===0?"white":"#FAFBFF"}>
+              <div style={{width:22,height:22,borderRadius:6,background:idx<3?["#D97706","#64748B","#B45309"][idx]:"#E2E8F0",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:900,color:"white",flexShrink:0}}>
+                {idx+1}
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:700,color:"#1E293B",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.nama}</div>
+                <div style={{fontSize:10,color:"#94A3B8",marginTop:1}}>{u.jabatan||u.role?.replace(/_/g," ")} · {cpi.tipe} · {cpi.records.length}×</div>
+              </div>
+              {!isMobile&&<Sparkline scores={cpi.eventScores} color={cpi.gradeColor} w={60} h={22}/>}
+              <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
+                {!isMobile&&[{l:"WPS",v:cpi.WPS},{l:"CS",v:cpi.CS}].map(m=>(
+                  <div key={m.l} style={{textAlign:"center",minWidth:36}}>
+                    <div style={{fontSize:12,fontWeight:800,color:"#475569"}}>{m.v}</div>
+                    <div style={{fontSize:9,color:"#94A3B8"}}>{m.l}</div>
+                  </div>
+                ))}
+                <div style={{textAlign:"center",minWidth:44}}>
+                  <div style={{fontSize:16,fontWeight:900,color:cpi.gradeColor}}>{cpi.CPI}</div>
+                  <div style={{padding:"1px 6px",borderRadius:4,background:cpi.gradeBg,color:cpi.gradeColor,fontSize:10,fontWeight:800}}>{cpi.grade}</div>
+                </div>
+                <span style={{fontSize:12,color:"#CBD5E1"}}>›</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {evaluators.length>0&&<div style={{marginTop:12,padding:"10px 14px",background:"white",borderRadius:10,border:"1px solid #E2E8F0",fontSize:11,color:"#64748B",lineHeight:1.7}}>
+        <span style={{fontWeight:700,color:NAVY}}>Keterangan:</span> CPI (Composite Performance Index) dihitung menggunakan rata-rata tertimbang temporal (WPS), tingkat konsistensi lintas kegiatan (CS), dan arah tren kinerja via regresi linier. Bobot terbaru lebih tinggi (λ=0.08/bln). Grade: A≥85 · B≥70 · C≥55 · D≥40 · E&lt;40.
+      </div>}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
 // DASHBOARD KABAG — Antrian, Jadwal+Penugasan, Batal Tayang
 // ═══════════════════════════════════════════════════════
 function KabagDashboard({events, user, upd, showT, askConfirm, deleteAndSync, isMobile}){
@@ -3919,6 +4269,39 @@ function KabagDashboard({events, user, upd, showT, askConfirm, deleteAndSync, is
           {personilList.length===0&&<div style={{background:"#FFF7ED",borderRadius:9,padding:"10px 12px",marginBottom:12,fontSize:12,color:"#92400E",fontWeight:600}}>⚠️ Belum ada personil yang ditugaskan</div>}
           {/* Catatan penolakan pembatalan */}
           {ev.alurHapus&&<div style={{background:"#FFF1F2",borderRadius:9,padding:"10px 12px",marginBottom:12,fontSize:12,color:"#B91C1C",fontWeight:600}}>🚫 Ada permintaan batal tayang dari staf — lihat tab Batal Tayang</div>}
+          {/* Kabag: batalkan tayang (setelah disetujui) */}
+          {ev.alur==="disetujui"&&!ev.alurHapus&&<>
+            <div style={{display:"flex",alignItems:"center",gap:8,margin:"8px 0 6px"}}>
+              <div style={{flex:1,height:1,background:"#E2E8F0"}}/>
+              <span style={{fontSize:10,color:"#94A3B8",fontWeight:600}}>tindakan koreksi</span>
+              <div style={{flex:1,height:1,background:"#E2E8F0"}}/>
+            </div>
+            <div style={{borderRadius:10,overflow:"hidden",border:"1.5px solid #FCD34D",background:"#FFFBEB"}}>
+              <div style={{padding:"8px 11px",fontSize:11,color:"#92400E",fontWeight:600}}>
+                ⚠️ Batalkan tayang & kembalikan ke Kasubbag untuk diperbaiki atau dihapus
+              </div>
+              <textarea placeholder="Alasan pembatalan tayang (wajib)..." value={rejectTexts[ev.id+"_recall"]||""} onChange={e=>setRT(p=>({...p,[ev.id+"_recall"]:e.target.value}))} rows={2}
+                style={{width:"100%",padding:"8px 11px",border:"none",borderTop:"1px solid #FCD34D",resize:"none",fontSize:12,boxSizing:"border-box",color:"#334155",background:"white"}}/>
+              <button onClick={()=>{
+                if(!(rejectTexts[ev.id+"_recall"]||"").trim()){showT("Tulis alasan pembatalan dulu","warn");return;}
+                askConfirm(
+                  "Batalkan Tayang Jadwal?",
+                  "Jadwal '"+ev.namaAcara+"' akan ditarik dari tampilan publik dan dikembalikan ke Kasubbag untuk diedit atau dihapus.",
+                  ()=>{
+                    upd(ev.id,{alur:"menunggu_kasubbag",catatanKabag:rejectTexts[ev.id+"_recall"]||"Perlu perbaikan",_kabagRecall:true});
+                    showT("Jadwal ditarik & dikembalikan ke Kasubbag","warn");
+                    // Notifikasi kasubbag
+                    loadUsers().filter(u=>u.role==="kasubbag_protokol"&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"recalled"}));
+                    sendPush({targetRole:"kasubbag_protokol",title:"↩ Jadwal Ditarik Kabag",body:ev.namaAcara+": "+(rejectTexts[ev.id+"_recall"]||"Perlu perbaikan"),url:"/",tag:"recall-"+ev.id});
+                    sendPush({targetRole:"admin_rk",title:"↩ Jadwal Ditarik Kabag",body:ev.namaAcara+" — dikembalikan ke Kasubbag",url:"/",tag:"recall-admin-"+ev.id});
+                    setExpanded(null);
+                  },"Batalkan Tayang","#D97706"
+                );
+              }} style={{width:"100%",padding:"10px",border:"none",background:"#FEF3C7",color:"#92400E",cursor:"pointer",fontSize:12,fontWeight:700}}>
+                ↩ Batalkan Tayang & Kembalikan ke Kasubbag
+              </button>
+            </div>
+          </>}
         </div>}
       </div>
     );
@@ -3958,6 +4341,24 @@ function KabagDashboard({events, user, upd, showT, askConfirm, deleteAndSync, is
 
         {/* TAB JADWAL TAYANG */}
         {activeTab==="jadwal"&&<>
+          {(()=>{const pairs=getOverlappingPairs(approved);if(!pairs.length)return null;return(
+            <div style={{background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:12,padding:"12px 14px",marginBottom:12}}>
+              <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+                <span style={{fontSize:18,flexShrink:0}}>⚡</span>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:12,fontWeight:700,color:"#991B1B",marginBottom:5}}>{pairs.length} pasang agenda berdekatan</div>
+                  {pairs.map((p,i)=>(
+                    <div key={i} style={{background:"white",borderRadius:7,padding:"6px 9px",marginBottom:i<pairs.length-1?4:0,border:"1px solid #FECACA",fontSize:11,color:"#374151"}}>
+                      <span style={{fontWeight:800,color:"#991B1B"}}>{p.a.jam}</span> {p.a.namaAcara}
+                      <span style={{color:"#9CA3AF",margin:"0 5px"}}>↔</span>
+                      <span style={{fontWeight:800,color:"#991B1B"}}>{p.b.jam}</span> {p.b.namaAcara}
+                      <span style={{color:"#9CA3AF",marginLeft:6,fontSize:10}}>({p.diff} mnt)</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );})()}
           <div style={{fontSize:11,fontWeight:800,color:"#64748B",letterSpacing:1.2,textTransform:"uppercase",marginBottom:12}}>
             {approved.length} Jadwal Disetujui
           </div>
@@ -4053,8 +4454,11 @@ function KasubbagDashboard({events, user, upd, showT, askConfirm, isMobile, onPe
           <span style={{fontSize:14,color:"#94A3B8",flexShrink:0}}>{exp?"▲":"▼"}</span>
         </div>
         {exp&&<div style={{borderTop:"1px solid #EFF6FF",padding:"12px 16px",background:"#FAFBFF"}}>
+          {ev._kabagRecall&&<div style={{background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:9,padding:"9px 12px",marginBottom:10,fontSize:12,color:"#991B1B",fontWeight:600}}>
+            ↩ Jadwal ini ditarik oleh Kabag — periksa, edit, atau ajukan ulang
+          </div>}
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            <button onClick={()=>{upd(ev.id,{alur:"menunggu_kabag"});showT("Diteruskan ke Kabag");loadUsers().filter(u=>u.role==="kabag"&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"kasubbag_approve"}));sendPush({targetRole:"kabag",title:"✅ Menunggu Persetujuan Anda",body:ev.namaAcara+" — "+ev.jam+" WITA",url:"/",tag:"approve-"+ev.id});setExpanded(null);}}
+            <button onClick={()=>{upd(ev.id,{alur:"menunggu_kabag",_kabagRecall:false});showT("Diteruskan ke Kabag");loadUsers().filter(u=>u.role==="kabag"&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"kasubbag_approve"}));sendPush({targetRole:"kabag",title:"✅ Menunggu Persetujuan Anda",body:ev.namaAcara+" — "+ev.jam+" WITA",url:"/",tag:"approve-"+ev.id});setExpanded(null);}}
               style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:GREEN,color:"white",cursor:"pointer",fontSize:13,fontWeight:800}}>
               ✅ Verifikasi & Teruskan ke Kabag
             </button>
@@ -4199,6 +4603,27 @@ function KasubbagDashboard({events, user, upd, showT, askConfirm, isMobile, onPe
 // TAMPILAN KHUSUS WALI KOTA / WAKIL WALI KOTA
 // Simpel, elegan, fokus acara + disposisi
 // ═══════════════════════════════════════════════════════
+// ─── Helper: cari pasangan jadwal yang berdekatan (< 90 menit selisih) ───
+function getOverlappingPairs(evList){
+  const pairs=[];
+  const approved=evList.filter(e=>e.alur==="disetujui");
+  for(let i=0;i<approved.length;i++){
+    for(let j=i+1;j<approved.length;j++){
+      const a=approved[i],b=approved[j];
+      if(a.tanggal!==b.tanggal)continue;
+      // Hanya jika ada pimpinan yang sama
+      const shared=a.untukPimpinan.some(p=>b.untukPimpinan.includes(p))||
+                   (a.delegasiKeWWK&&b.untukPimpinan.includes("wakilwalikota"))||
+                   (b.delegasiKeWWK&&a.untukPimpinan.includes("wakilwalikota"));
+      if(!shared)continue;
+      const aMin=toMin(a.jam),bMin=toMin(b.jam);
+      const diff=Math.abs(aMin-bMin);
+      if(diff>0&&diff<90)pairs.push({a,b,diff});
+    }
+  }
+  return pairs;
+}
+
 function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegTarget, upd, showT, isMobile}){
   const NAVY="#0A1628",GOLD="#C9A84C",GREEN="#0D6B4F";
   const now=new Date();
@@ -4465,7 +4890,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
             <span style={{fontSize:20}}>📋</span>
             <div>
               <div style={{fontSize:13,fontWeight:700,color:"#92400E"}}>Ada agenda yang belum dikonfirmasi</div>
-              <div style={{fontSize:12,color:"#B45309",marginTop:2}}>{upcoming.filter(e=>!statusWK(e)&&!e.delegasiKeWWK).length} jadwal menunggu konfirmasi kehadiran Bapak/Ibu</div>
+              <div style={{fontSize:12,color:"#B45309",marginTop:2}}>{upcoming.filter(e=>!statusWK(e)&&!e.delegasiKeWWK).length} jadwal menunggu konfirmasi kehadiran</div>
             </div>
           </div>
         )}
@@ -4500,6 +4925,40 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
           );
         })()}
 
+        {/* Peringatan acara berdekatan */}
+        {(()=>{
+          const pairs=getOverlappingPairs(myEvs);
+          if(!pairs.length)return null;
+          return(
+            <div style={{background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:12,padding:"12px 16px",marginBottom:14,cursor:"default"}}>
+              <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+                <span style={{fontSize:20,flexShrink:0}}>⚡</span>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"#991B1B",marginBottom:5}}>
+                    {pairs.length} pasang agenda berdekatan
+                  </div>
+                  {pairs.map((p,i)=>(
+                    <div key={i} style={{background:"white",borderRadius:8,padding:"7px 10px",marginBottom:i<pairs.length-1?5:0,border:"1px solid #FECACA"}}>
+                      <div style={{fontSize:11,color:"#374151",fontWeight:600,lineHeight:1.4}}>
+                        <span style={{color:"#991B1B",fontWeight:800}}>{p.a.jam}</span> {p.a.namaAcara}
+                        <span style={{color:"#9CA3AF",margin:"0 6px"}}>vs</span>
+                        <span style={{color:"#991B1B",fontWeight:800}}>{p.b.jam}</span> {p.b.namaAcara}
+                      </div>
+                      <div style={{fontSize:10,color:"#9CA3AF",marginTop:3}}>
+                        Selisih {p.diff} menit · {new Date(p.a.tanggal).toLocaleDateString("id-ID",{weekday:"short",day:"numeric",month:"short"})}
+                        {p.a.untukPimpinan.some(x=>p.b.untukPimpinan.includes(x))&&
+                          <span style={{marginLeft:6,background:"#FEE2E2",color:"#991B1B",padding:"1px 5px",borderRadius:4,fontWeight:700}}>
+                            {p.a.untukPimpinan.filter(x=>p.b.untukPimpinan.includes(x)).map(x=>x==="walikota"?"WK":"WWK").join(" & ")}
+                          </span>
+                        }
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
         {/* Antrian Approval untuk kasubbag_protokol/kabag */}
         {pendingApproval.length>0&&<>
           <div style={{fontSize:11,fontWeight:800,color:"#7C3AED",letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
@@ -4565,12 +5024,28 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
         const evTime=new Date(ev.tanggal+"T"+ev.jam);
         const hoursLeft=(evTime-new Date())/(1000*60*60);
         const urgent=hoursLeft>0&&hoursLeft<=12&&(!ev.personil||ev.personil.length===0);
+        const allU=loadUsers();
+        const personilLabels=(ev.personil||[]).map(un=>{
+          const nm=allU.find(u=>u.username===un)?.nama||un;
+          return {nm,isMe:un===user.username};
+        });
+        const showNames=personilLabels.length>0;
         return(
-          <div style={{background:isAssigned?"#F0FDF4":urgent?"#FFF7ED":"#F8FAFC",padding:"5px 14px",borderBottom:"1px solid "+(isAssigned?"#BBF7D0":urgent?"#FED7AA":"#E2E8F0"),display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:12,flexShrink:0}}>{isAssigned?"🎯":urgent?"⚠️":personilList.length>0?"👥":"○"}</span>
-            <span style={{fontSize:11,fontWeight:700,color:isAssigned?"#15803D":urgent?"#9A3412":personilList.length>0?"#334155":"#94A3B8",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-              {isAssigned?"Anda bertugas":urgent?"Belum ada personil!":personilList.length>0?personilList.length+" personil ditugaskan":"Belum ada penugasan"}
-            </span>
+          <div style={{background:isAssigned?"#F0FDF4":urgent?"#FFF7ED":showNames?"#F0F9FF":"#F8FAFC",padding:showNames?"6px 14px":"5px 14px",borderBottom:"1px solid "+(isAssigned?"#BBF7D0":urgent?"#FED7AA":showNames?"#BAE6FD":"#E2E8F0"),display:"flex",alignItems:"flex-start",gap:8,flexWrap:"wrap"}}>
+            <span style={{fontSize:12,flexShrink:0,marginTop:1}}>{urgent?"⚠️":showNames?"👥":"○"}</span>
+            <div style={{flex:1,display:"flex",flexWrap:"wrap",gap:4,alignItems:"center",minWidth:0}}>
+              {showNames
+                ?personilLabels.map((p,i)=>(
+                    <span key={i} style={{display:"inline-flex",alignItems:"center",gap:3,background:p.isMe?"#D1FAE5":"#E0F2FE",color:p.isMe?"#065F46":"#0369A1",borderRadius:5,padding:"2px 7px",fontSize:10,fontWeight:700,whiteSpace:"nowrap"}}>
+                      {p.isMe&&<span style={{fontSize:9}}>🎯</span>}
+                      {p.nm}{p.isMe?" (Anda)":""}
+                    </span>
+                  ))
+                :<span style={{fontSize:11,fontWeight:700,color:urgent?"#9A3412":"#94A3B8"}}>
+                    {urgent?"Belum ada personil!":"Belum ada penugasan"}
+                  </span>
+              }
+            </div>
             {["kasubbag_protokol","kasubbag_komdokpim"].includes(role)&&ev.alur==="disetujui"&&<button onClick={e=>{e.stopPropagation();setPenugasanEv(ev);}} style={{flexShrink:0,padding:"2px 8px",borderRadius:5,border:"1px solid #CBD5E1",background:"white",color:"#334155",cursor:"pointer",fontSize:10,fontWeight:700}}>
               {(!ev.personil||ev.personil.length===0)?"+ Tugaskan":"Edit"}
             </button>}
@@ -4942,7 +5417,9 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
           <div style={{fontSize:12,color:"rgba(255,255,255,0.55)",marginTop:2}}>{listEvents.length} kegiatan disetujui · terlihat semua pengguna</div>
         </div>
       </div>}
-      {showPenugasan
+      {(showPenugasan&&(role==="kabag"||KASUBBAG_ROLES.includes(role)))
+        ?<RekapEvaluasi events={events} user={user} isMobile={isMobile}/>
+        :showPenugasan
         ?<PenugasanSayaView events={events} user={user} onOpenEvaluasi={setEvaluasiEv} isMobile={isMobile}/>
         :(role==="ajudan_walikota"||role==="ajudan_wakilwalikota")&&tab==="ajudan"
         ?<AjudanDashboard events={events} user={user} upd={upd} showT={showT} setDelegTarget={setDelegTarget} isMobile={isMobile}/>
