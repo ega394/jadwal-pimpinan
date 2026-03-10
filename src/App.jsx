@@ -352,14 +352,15 @@ async function initUsers(){
 const HARI_ID=["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
 const getHari=d=>d?HARI_ID[new Date(d+"T00:00:00").getDay()]:"";
 const fmt=d=>d?new Date(d+"T00:00:00").toLocaleDateString("id-ID",{day:"numeric",month:"long",year:"numeric"}):"--";
+const localDateStr=(d=new Date())=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 const fmtShort=d=>d?new Date(d+"T00:00:00").toLocaleDateString("id-ID",{day:"numeric",month:"short",year:"numeric"}):"--";
 const toMin=t=>{if(!t)return 0;const[h,m]=t.split(":").map(Number);return h*60+m;};
-const todayStr=()=>new Date().toISOString().slice(0,10);
-const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);return d.toISOString().slice(0,10);};
-const weekStart=()=>{const d=new Date();d.setDate(d.getDate()-d.getDay()+1);return d.toISOString().slice(0,10);};
-const weekEnd=()=>{const d=new Date();d.setDate(d.getDate()-d.getDay()+7);return d.toISOString().slice(0,10);};
+const todayStr=()=>localDateStr();
+const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);return localDateStr(d);};
+const weekStart=()=>{const d=new Date();d.setDate(d.getDate()-d.getDay()+1);return localDateStr(d);};
+const weekEnd=()=>{const d=new Date();d.setDate(d.getDate()-d.getDay()+7);return localDateStr(d);};
 const monthStart=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-01";};
-const monthEnd=()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth()+1,0).toISOString().slice(0,10);};
+const monthEnd=()=>{const _d=new Date();return localDateStr(new Date(_d.getFullYear(),_d.getMonth()+1,0));};
 const hasConflict=(events,ev)=>{const s=toMin(ev.jam),e2=s+120;return events.some(e=>e.id!==ev.id&&e.alur==="disetujui"&&e.tanggal===ev.tanggal&&e.untukPimpinan.some(p=>ev.untukPimpinan?.includes(p))&&(()=>{const es=toMin(e.jam),ee=es+120;return s<ee&&e2>es;})());};
 function makeICS(ev){
   const[y,mo,d]=ev.tanggal.split("-");
@@ -997,8 +998,8 @@ function LaporanModal({events,onClose,kabagNama,cetakOleh}){
   const years=Array.from({length:3},(_,i)=>new Date().getFullYear()-1+i);
   const months=["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
   const getRange=()=>{
-    if(mode==="week"){const ws=selWeek;const we=new Date(ws);we.setDate(we.getDate()+6);return{from:ws,to:we.toISOString().slice(0,10),label:"Minggu "+fmt(ws)+" s.d. "+fmt(we.toISOString().slice(0,10))};}
-    const ym=selYear+"-"+String(selMonth+1).padStart(2,"0");const ms=ym+"-01";const me=new Date(selYear,selMonth+1,0).toISOString().slice(0,10);return{from:ms,to:me,label:"Bulan "+months[selMonth]+" "+selYear};
+    if(mode==="week"){const ws=selWeek;const we=new Date(ws);we.setDate(we.getDate()+6);return{from:ws,to:localDateStr(we),label:"Minggu "+fmt(ws)+" s.d. "+fmt(localDateStr(we))};}
+    const ym=selYear+"-"+String(selMonth+1).padStart(2,"0");const ms=ym+"-01";const me=localDateStr(new Date(selYear,selMonth+1,0));return{from:ms,to:me,label:"Bulan "+months[selMonth]+" "+selYear};
   };
   const range=getRange();
   const filtered=events.filter(e=>e.alur==="disetujui"&&e.tanggal>=range.from&&e.tanggal<=range.to).sort((a,b)=>(a.tanggal+a.jam).localeCompare(b.tanggal+b.jam));
@@ -1785,6 +1786,17 @@ function EvaluasiModal({ev, onClose, onSave, currentUser}){
 }
 
 function PenugasanModal({ev, onClose, onSave, currentUser, allUsers, allEvents}){
+  // Guard: penugasan hanya boleh untuk jadwal yang sudah disetujui
+  if(ev && ev.alur !== "disetujui") return(
+    <div style={{position:"fixed",inset:0,zIndex:9500,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(10,22,40,0.6)",padding:16}}>
+      <div style={{background:"white",borderRadius:18,padding:"28px 24px",maxWidth:340,width:"100%",textAlign:"center"}}>
+        <div style={{fontSize:36,marginBottom:12}}>🔒</div>
+        <div style={{fontSize:16,fontWeight:800,color:"#0A1628",marginBottom:8}}>Belum Bisa Ditugaskan</div>
+        <div style={{fontSize:13,color:"#64748B",marginBottom:20}}>Penugasan personil hanya dapat dilakukan setelah jadwal <strong>disetujui & dipublikasi</strong> oleh Kepala Bagian.</div>
+        <button onClick={onClose} style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:"#0A1628",color:"white",cursor:"pointer",fontSize:14,fontWeight:700}}>Mengerti</button>
+      </div>
+    </div>
+  );
   const NAVY="#0A1628",GOLD="#C9A84C",GREEN="#0D6B4F";
 
   // Hanya staf, admin_rk, kasubbag, timkom yang bisa ditugaskan
@@ -2573,13 +2585,17 @@ export default function App(){
       }).sort((a,b)=>(a.tanggal+a.jam).localeCompare(b.tanggal+b.jam));
     }
     let base=events;
-    // Staf dan admin_rk lihat jadwal disetujui yang ditugaskan ke mereka juga
-    if(["staf","admin_rk"].includes(role)){
-      return events.filter(e=>{
-        if(e.alur==="disetujui"&&(e.personil||[]).includes(user.username))return true;
-        // Jadwal yang mereka submit sendiri
-        return !filterDate||e.tanggal===filterDate;
-      }).filter(e=>!filterDate||e.tanggal===filterDate).sort((a,b)=>(a.tanggal+a.jam).localeCompare(b.tanggal+b.jam));
+    // Staf: lihat semua jadwal disetujui sebagai konteks agenda mendatang
+    // Admin RK: lihat draft milik sendiri + semua disetujui
+    if(role==="staf"){
+      const base=events.filter(e=>e.alur==="disetujui");
+      const filtered=filterDate?base.filter(e=>e.tanggal===filterDate):base;
+      return filtered.sort((a,b)=>(a.tanggal+a.jam).localeCompare(b.tanggal+b.jam));
+    }
+    if(role==="admin_rk"){
+      const base=events.filter(e=>e.alur==="disetujui"||e.submittedBy===user.username);
+      const filtered=filterDate?base.filter(e=>e.tanggal===filterDate):base;
+      return filtered.sort((a,b)=>(a.tanggal+a.jam).localeCompare(b.tanggal+b.jam));
     }
     if(role==="walikota")base=events.filter(e=>e.untukPimpinan.includes("walikota")&&e.alur==="disetujui");
     else if(role==="wakilwalikota")base=events.filter(e=>e.alur==="disetujui"&&(e.untukPimpinan.includes("wakilwalikota")||e.delegasiKeWWK));
@@ -2617,7 +2633,19 @@ export default function App(){
     setForm(emptyForm);setTab("jadwal");
   };
 
-  const TH={walikota:{g:"linear-gradient(135deg,"+NAVY+",#1B4080)",a:GOLD},wakilwalikota:{g:"linear-gradient(135deg,#053f2a,#065f46)",a:"#6ee7b7"},ajudan:{g:"linear-gradient(135deg,#1e293b,#334155)",a:"#94a3b8"},timkom:{g:"linear-gradient(135deg,#3730a3,#4f46e5)",a:"#a5b4fc"},staf:{g:"linear-gradient(135deg,"+NAVY+",#1B4080)",a:GOLD},admin_rk:{g:"linear-gradient(135deg,#7c2d12,#c2410c)",a:"#fdba74"},kasubbag_protokol:{g:"linear-gradient(135deg,#78350f,#d97706)",a:"#fde68a"},kasubbag_komdokpim:{g:"linear-gradient(135deg,#1e3a5f,#0284c7)",a:"#7dd3fc"},kabag:{g:"linear-gradient(135deg,#064e3b,#10b981)",a:"#6ee7b7"}};
+  // Palet konsisten: semua pakai navy, hanya aksen yang berbeda per peran
+const TH={
+  walikota:        {g:"linear-gradient(160deg,#0A1628 0%,#1A2F50 100%)",a:GOLD},
+  wakilwalikota:   {g:"linear-gradient(160deg,#0A1628 0%,#0D2B1E 100%)",a:"#6EE7B7"},
+  ajudan_walikota: {g:"linear-gradient(160deg,#0A1628 0%,#1E293B 100%)",a:"#93C5FD"},
+  ajudan_wakilwalikota:{g:"linear-gradient(160deg,#0A1628 0%,#1E293B 100%)",a:"#86EFAC"},
+  timkom:          {g:"linear-gradient(160deg,#0A1628 0%,#1A2F50 100%)",a:"#A5B4FC"},
+  staf:            {g:"linear-gradient(160deg,#0A1628 0%,#1A2F50 100%)",a:GOLD},
+  admin_rk:        {g:"linear-gradient(160deg,#0A1628 0%,#1A2F50 100%)",a:"#FCD34D"},
+  kasubbag_protokol:   {g:"linear-gradient(160deg,#0A1628 0%,#1A2F50 100%)",a:"#FDE68A"},
+  kasubbag_komdokpim:  {g:"linear-gradient(160deg,#0A1628 0%,#1A2F50 100%)",a:"#7DD3FC"},
+  kabag:           {g:"linear-gradient(160deg,#0A1628 0%,#1A2F50 100%)",a:"#6EE7B7"},
+};
   const th=TH[role]||TH.staf;
   const roleInfo=ALL_ROLE_DEFS.find(r=>r.key===role)||{icon:"circle",label:"",key:""};
   const kabagNama=loadUsers().find(u=>u.role==="kabag")?.nama||"Kabag Protokol & Komunikasi Pimpinan";
@@ -3382,7 +3410,7 @@ function AjudanDashboard({events, user, upd, showT, setDelegTarget, isMobile}){
   const role=user?.role;
   const NAVY="#0A1628",GOLD="#C9A84C",GREEN="#0D6B4F";
   const now = new Date();
-  const toStr = d => d.toISOString().slice(0,10);
+  const toStr = d => localDateStr(d);
   const todayS = toStr(now);
   const tmrw = new Date(); tmrw.setDate(tmrw.getDate()+1);
   const tmrwS = toStr(tmrw);
@@ -3671,7 +3699,7 @@ function NotifCenter({events, user, onClose, isMobile}){
   const NAVY="#0A1628",GOLD="#C9A84C";
   const role=user?.role;
   const now=new Date();
-  const todayS=now.toISOString().slice(0,10);
+  const todayS=localDateStr(now);
   const fmt=t=>new Date(t).toLocaleDateString("id-ID",{weekday:"short",day:"numeric",month:"short"});
 
   // Kumpulkan notifikasi sesuai role
@@ -3719,7 +3747,7 @@ function NotifCenter({events, user, onClose, isMobile}){
 
     // Ajudan: belum konfirmasi kehadiran (hari ini + besok)
     if(role==="ajudan_walikota"||role==="ajudan_wakilwalikota"){
-      const tmrwS=new Date(now.getTime()+86400000).toISOString().slice(0,10);
+      const tmrwS=localDateStr(new Date(now.getTime()+86400000));
       const isWK=role==="ajudan_walikota";
       const belum=approved.filter(e=>{
         const tgl=e.tanggal;
@@ -3837,13 +3865,13 @@ function KabagDashboard({events, user, upd, showT, askConfirm, deleteAndSync, is
           ))}
           {/* Aksi */}
           <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:8}}>
-            <button onClick={()=>{upd(ev.id,{alur:"disetujui"});showT("Jadwal disetujui & dipublikasi");const u=loadUsers().find(x=>x.username===ev.submittedBy);if(u?.noWA)sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"approved",submittedBy:getNamaByUsername(ev.submittedBy)});sendPush({targetRole:"staf",title:"✅ Jadwal Disetujui",body:ev.namaAcara+" sudah dipublikasi",url:"/",tag:"approved-"+ev.id});setExpanded(null);}}
+            <button onClick={()=>{upd(ev.id,{alur:"disetujui"});showT("Jadwal disetujui & dipublikasi");const u=loadUsers().find(x=>x.username===ev.submittedBy);if(u?.noWA)sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"approved",submittedBy:getNamaByUsername(ev.submittedBy)});sendPush({targetRole:"admin_rk",title:"✅ Jadwal Disetujui",body:ev.namaAcara+" sudah dipublikasi",url:"/",tag:"approved-"+ev.id});setExpanded(null);}}
               style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:13,fontWeight:800}}>
               ✅ Setujui & Publikasi
             </button>
             <div style={{borderRadius:10,overflow:"hidden",border:"1.5px solid #FECACA"}}>
               <textarea placeholder="Catatan penolakan..." value={rejectTexts[ev.id]||""} onChange={e=>setRT(p=>({...p,[ev.id]:e.target.value}))} rows={2} style={{width:"100%",padding:"9px 11px",border:"none",resize:"none",color:"#334155",background:"white",fontSize:12,boxSizing:"border-box"}}/>
-              <button onClick={()=>askConfirm("Tolak Jadwal?","Jadwal '"+ev.namaAcara+"' akan dikembalikan ke staf.",()=>{upd(ev.id,{alur:"ditolak",catatanTolak:rejectTexts[ev.id]||""});showT("Ditolak","warn");const u=loadUsers().find(x=>x.username===ev.submittedBy);if(u?.noWA)sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,event:"rejected",catatanTolak:rejectTexts[ev.id]||"",submittedBy:getNamaByUsername(ev.submittedBy)});sendPush({targetRole:"staf",title:"❌ Jadwal Dikembalikan",body:ev.namaAcara+": "+(rejectTexts[ev.id]||"Perlu diperbaiki"),url:"/",tag:"rejected-"+ev.id});setExpanded(null);},"Tolak","#991B1B")}
+              <button onClick={()=>askConfirm("Tolak Jadwal?","Jadwal '"+ev.namaAcara+"' akan dikembalikan ke staf.",()=>{upd(ev.id,{alur:"ditolak",catatanTolak:rejectTexts[ev.id]||""});showT("Ditolak","warn");const u=loadUsers().find(x=>x.username===ev.submittedBy);if(u?.noWA)sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,event:"rejected",catatanTolak:rejectTexts[ev.id]||"",submittedBy:getNamaByUsername(ev.submittedBy)});sendPush({targetRole:"admin_rk",title:"❌ Jadwal Dikembalikan",body:ev.namaAcara+": "+(rejectTexts[ev.id]||"Perlu diperbaiki"),url:"/",tag:"rejected-"+ev.id});setExpanded(null);},"Tolak","#991B1B")}
                 style={{width:"100%",padding:"10px",border:"none",background:"#FEE2E2",color:"#991B1B",cursor:"pointer",fontSize:12,fontWeight:700}}>
                 ❌ Tolak & Kembalikan ke Staf
               </button>
@@ -4032,9 +4060,9 @@ function KasubbagDashboard({events, user, upd, showT, askConfirm, isMobile, onPe
             </button>
             <div style={{borderRadius:10,overflow:"hidden",border:"1.5px solid #FECACA"}}>
               <textarea placeholder="Catatan penolakan..." value={rejectTexts[ev.id]||""} onChange={e=>setRT(p=>({...p,[ev.id]:e.target.value}))} rows={2} style={{width:"100%",padding:"9px 11px",border:"none",resize:"none",fontSize:12,boxSizing:"border-box",color:"#334155"}}/>
-              <button onClick={()=>askConfirm("Tolak & Kembalikan ke Staf?","Jadwal '"+ev.namaAcara+"' akan dikembalikan.",()=>{upd(ev.id,{alur:"ditolak",catatanTolak:rejectTexts[ev.id]||""});showT("Dikembalikan","warn");const u=loadUsers().find(x=>x.username===ev.submittedBy);if(u?.noWA)sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,event:"rejected",catatanTolak:rejectTexts[ev.id]||"",submittedBy:getNamaByUsername(ev.submittedBy)});setExpanded(null);},"Tolak","#991B1B")}
+              <button onClick={()=>askConfirm("Tolak & Kembalikan ke Staf?","Jadwal '"+ev.namaAcara+"' akan dikembalikan.",()=>{upd(ev.id,{alur:"ditolak",catatanTolak:rejectTexts[ev.id]||"",_requiresEdit:true});showT("Dikembalikan ke Admin RK","warn");const u=loadUsers().find(x=>x.username===ev.submittedBy);if(u?.noWA)sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,event:"rejected",catatanTolak:rejectTexts[ev.id]||"",submittedBy:getNamaByUsername(ev.submittedBy)});sendPush({targetRole:"admin_rk",title:"❌ Jadwal Dikembalikan",body:ev.namaAcara+": "+(rejectTexts[ev.id]||"Perlu perbaikan"),url:"/",tag:"rejected-"+ev.id});setExpanded(null);},"Tolak","#991B1B")}
                 style={{width:"100%",padding:"10px",border:"none",background:"#FEE2E2",color:"#991B1B",cursor:"pointer",fontSize:12,fontWeight:700}}>
-                ❌ Tolak & Kembalikan ke Staf
+                ❌ Tolak & Kembalikan ke Admin RK
               </button>
             </div>
           </div>
@@ -4174,8 +4202,8 @@ function KasubbagDashboard({events, user, upd, showT, askConfirm, isMobile, onPe
 function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegTarget, upd, showT, isMobile}){
   const NAVY="#0A1628",GOLD="#C9A84C",GREEN="#0D6B4F";
   const now=new Date();
-  const todayStr=()=>new Date().toISOString().slice(0,10);
-  const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);return d.toISOString().slice(0,10);};
+  const todayStr=()=>localDateStr();
+  const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);return localDateStr(d);};
   const getHari=t=>{const d=new Date(t);return d.toLocaleDateString("id-ID",{weekday:"long"});};
   const fmt=t=>{const d=new Date(t);return d.toLocaleDateString("id-ID",{day:"numeric",month:"long",year:"numeric"});};
 
@@ -4523,7 +4551,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
     const isPast=ev.alur==="disetujui"&&evDt<nowDt;
     const isUpcoming=ev.alur==="disetujui"&&evDt>=nowDt;
     const borderColor=isPending?"#F59E0B":isDraft?"#94A3B8":ev.alur==="ditolak"?"#EF4444":isToday&&isUpcoming?NAVY:"transparent";
-    const cardBg=isPast?"#F8F9FA":isPending?"#FFFBEB":isDraft?"#F8FAFC":"white";
+    const cardBg="white";
     const cardOpacity=isPast?0.72:1;
     return <div id={"ev-"+ev.id} className="ev-card" style={{background:cardBg,borderRadius:16,marginBottom:10,boxShadow:"0 2px 12px rgba(0,0,0,0.07),0 0 0 1px rgba(0,0,0,0.04)",border:"1.5px solid "+borderColor,overflow:"hidden",opacity:cardOpacity}}>
       {ev.catatanPimpinan&&<div style={{background:"linear-gradient(90deg,#EEF2FF,#F5F3FF)",padding:"6px 14px",fontSize:11,color:"#4338CA",fontWeight:600,borderBottom:"1px solid #E0E7FF",display:"flex",alignItems:"center",gap:5}}>
@@ -4538,22 +4566,20 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
         const hoursLeft=(evTime-new Date())/(1000*60*60);
         const urgent=hoursLeft>0&&hoursLeft<=12&&(!ev.personil||ev.personil.length===0);
         return(
-          <div style={{background:isAssigned?"linear-gradient(90deg,#f0fdf4,#dcfce7)":urgent?"linear-gradient(90deg,#fff7ed,#ffedd5)":"linear-gradient(90deg,#f8fafc,#f1f5f9)",padding:"7px 14px",borderBottom:"1px solid "+(isAssigned?"#bbf7d0":urgent?"#fed7aa":"#e2e8f0"),display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-            <span style={{fontSize:13}}>{isAssigned?"🎯":urgent?"⚠️":"👥"}</span>
-            <span style={{fontSize:11,fontWeight:700,color:isAssigned?"#166534":urgent?"#9a3412":"#475569"}}>
-              {isAssigned?"Anda bertugas di acara ini":urgent?"Belum ada personil ditugaskan!":personilList.length>0?"Personil: "+personilList.join(", "):"Belum ada penugasan"}
+          <div style={{background:isAssigned?"#F0FDF4":urgent?"#FFF7ED":"#F8FAFC",padding:"5px 14px",borderBottom:"1px solid "+(isAssigned?"#BBF7D0":urgent?"#FED7AA":"#E2E8F0"),display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:12,flexShrink:0}}>{isAssigned?"🎯":urgent?"⚠️":personilList.length>0?"👥":"○"}</span>
+            <span style={{fontSize:11,fontWeight:700,color:isAssigned?"#15803D":urgent?"#9A3412":personilList.length>0?"#334155":"#94A3B8",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+              {isAssigned?"Anda bertugas":urgent?"Belum ada personil!":personilList.length>0?personilList.length+" personil ditugaskan":"Belum ada penugasan"}
             </span>
-            {isAssigned&&ev.catatanPenugasan&&<span style={{fontSize:11,color:"#15803d",fontStyle:"italic"}}>· {ev.catatanPenugasan}</span>}
-            {["kasubbag_protokol","timkom"].includes(role)&&ev.alur==="disetujui"&&<button onClick={e=>{e.stopPropagation();setPenugasanEv(ev);}} style={{marginLeft:"auto",padding:"3px 10px",borderRadius:6,border:"1.5px solid #0A1628",background:"white",color:"#0A1628",cursor:"pointer",fontSize:10,fontWeight:700,flexShrink:0}}>
-              {(!ev.personil||ev.personil.length===0)?"+ Tugaskan":"✏️ Edit"}
+            {["kasubbag_protokol","kasubbag_komdokpim"].includes(role)&&ev.alur==="disetujui"&&<button onClick={e=>{e.stopPropagation();setPenugasanEv(ev);}} style={{flexShrink:0,padding:"2px 8px",borderRadius:5,border:"1px solid #CBD5E1",background:"white",color:"#334155",cursor:"pointer",fontSize:10,fontWeight:700}}>
+              {(!ev.personil||ev.personil.length===0)?"+ Tugaskan":"Edit"}
             </button>}
             {isAssigned&&ev.alur==="disetujui"&&(()=>{
               const sudahEval=!!(ev.evaluasi||{})[user.username]?.submitted;
-              const evTime=new Date(ev.tanggal+"T"+ev.jam);
-              const sudahLewat=new Date()>evTime;
+              const sudahLewat=new Date()>new Date(ev.tanggal+"T"+ev.jam);
               if(!sudahLewat)return null;
-              return <button onClick={e=>{e.stopPropagation();setEvaluasiEv(ev);}} style={{marginLeft:["kasubbag_protokol","timkom"].includes(role)?"4px":"auto",padding:"3px 10px",borderRadius:6,border:"1.5px solid "+(sudahEval?"#16a34a":"#7c3aed"),background:sudahEval?"#f0fdf4":"#faf5ff",color:sudahEval?"#16a34a":"#7c3aed",cursor:"pointer",fontSize:10,fontWeight:700,flexShrink:0}}>
-                {sudahEval?"✅ Evaluasi":"📝 Isi Evaluasi"}
+              return <button onClick={e=>{e.stopPropagation();setEvaluasiEv(ev);}} style={{flexShrink:0,padding:"2px 8px",borderRadius:5,border:"1px solid "+(sudahEval?"#16A34A":"#7C3AED"),background:"white",color:sudahEval?"#16A34A":"#7C3AED",cursor:"pointer",fontSize:10,fontWeight:700}}>
+                {sudahEval?"✅ Evaluasi":"📝 Evaluasi"}
               </button>;
             })()}
           </div>
@@ -4660,25 +4686,75 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
         </div>}
       </div>
 
-      {/* STAF/STAF_INPUT ACTIONS */}
-      {role==="staf"&&<div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
-        {ev.alur!=="disetujui"&&<button onClick={()=>{setForm({tanggal:ev.tanggal,jam:ev.jam,namaAcara:ev.namaAcara,penyelenggara:ev.penyelenggara,kontak:ev.kontak||"",buktiUndangan:ev.buktiUndangan||"",pakaian:ev.pakaian,jenisKegiatan:ev.jenisKegiatan,catatan:ev.catatan||"",lokasi:ev.lokasi||"",untukPimpinan:ev.untukPimpinan,undanganFile:ev.undanganFile||null,undanganNama:ev.undanganNama||""});setEditId(ev.id);setTab("form");}} style={{padding:"9px 14px",borderRadius:9,border:"1.5px solid "+NAVY,background:"white",color:NAVY,cursor:"pointer",fontSize:12,fontWeight:700}}>Edit</button>}
-        {ev.alur==="draft"&&<button onClick={()=>{upd(ev.id,{alur:"menunggu_kasubbag"});showT("Dikirim ke Kasubbag");
-            // Notif WA ke semua Kasubbag
-            loadUsers().filter(u=>u.role==="kasubbag_protokol"&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"submit",submittedBy:user?.nama}));sendPush({targetRole:"kasubbag_protokol",title:"📋 Jadwal Baru Masuk",body:ev.namaAcara+" — "+ev.jam+" WITA",url:"/",tag:"submit-"+ev.id});}} style={{padding:"9px 14px",borderRadius:9,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>Kirim ke Kasubbag</button>}
-        {ev.alur==="ditolak"&&<><div style={{padding:"8px 12px",background:"#fff7ed",borderRadius:8,fontSize:12,color:"#92400e",flex:1}}>Ditolak: {ev.catatanTolak}</div><button onClick={()=>{upd(ev.id,{alur:"menunggu_kasubbag",catatanTolak:""});showT("Dikirim ulang");
-              loadUsers().filter(u=>u.role==="kasubbag_protokol"&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"submit",submittedBy:user?.nama}));sendPush({targetRole:"kasubbag_protokol",title:"📋 Jadwal Dikirim Ulang",body:ev.namaAcara+" — "+ev.jam+" WITA",url:"/",tag:"submit-"+ev.id});}} style={{padding:"9px 14px",borderRadius:9,border:"none",background:"#d97706",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>Kirim Ulang</button></>}
-        {ev.alur==="disetujui"&&!ev.alurHapus&&ev.submittedBy===user?.username&&<button onClick={()=>{upd(ev.id,{alurHapus:"menunggu_kasubbag"});showT("Permintaan hapus dikirim","warn");}} style={{padding:"9px 14px",borderRadius:9,border:"1.5px solid #fca5a5",background:"white",color:"#ef4444",cursor:"pointer",fontSize:12,fontWeight:700}}>Ajukan Pembatalan</button>}
+      {/* ADMIN RK ACTIONS — hierarki: Primary → Secondary → Destructive */}
+      {role==="admin_rk"&&<div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:8}}>
+        {/* ── DRAFT: Kirim (primary) + Edit (secondary) ── */}
+        {ev.alur==="draft"&&<>
+          <button onClick={()=>{upd(ev.id,{alur:"menunggu_kasubbag"});showT("Dikirim ke Kasubbag");
+            loadUsers().filter(u=>u.role==="kasubbag_protokol"&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"submit",submittedBy:user?.nama}));sendPush({targetRole:"kasubbag_protokol",title:"📋 Jadwal Baru Masuk",body:ev.namaAcara+" — "+ev.jam+" WITA",url:"/",tag:"submit-"+ev.id});}}
+            style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:13,fontWeight:800,boxShadow:"0 4px 12px rgba(10,22,40,0.25)"}}>
+            📤 Kirim ke Kasubbag
+          </button>
+          <button onClick={()=>{setForm({tanggal:ev.tanggal,jam:ev.jam,namaAcara:ev.namaAcara,penyelenggara:ev.penyelenggara,kontak:ev.kontak||"",buktiUndangan:ev.buktiUndangan||"",pakaian:ev.pakaian,jenisKegiatan:ev.jenisKegiatan,catatan:ev.catatan||"",lokasi:ev.lokasi||"",untukPimpinan:ev.untukPimpinan,undanganFile:ev.undanganFile||null,undanganNama:ev.undanganNama||""});setEditId(ev.id);setTab("form");}}
+            style={{width:"100%",padding:"10px",borderRadius:10,border:"1.5px solid "+NAVY,background:"white",color:NAVY,cursor:"pointer",fontSize:13,fontWeight:700}}>
+            ✏️ Edit Jadwal
+          </button>
+        </>}
+        {/* ── DITOLAK: wajib edit dulu, baru bisa kirim ulang ── */}
+        {ev.alur==="ditolak"&&<>
+          <div style={{background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:10,padding:"12px 14px",display:"flex",gap:10,alignItems:"flex-start"}}>
+            <span style={{fontSize:18,flexShrink:0}}>❌</span>
+            <div>
+              <div style={{fontSize:12,fontWeight:800,color:"#991B1B",marginBottom:3}}>Jadwal Dikembalikan</div>
+              <div style={{fontSize:12,color:"#7F1D1D",lineHeight:1.5}}>{ev.catatanTolak||"Perlu diperbaiki"}</div>
+            </div>
+          </div>
+          {/* PRIMARY: Edit dulu — wajib jika _requiresEdit */}
+          <button onClick={()=>{setForm({tanggal:ev.tanggal,jam:ev.jam,namaAcara:ev.namaAcara,penyelenggara:ev.penyelenggara,kontak:ev.kontak||"",buktiUndangan:ev.buktiUndangan||"",pakaian:ev.pakaian,jenisKegiatan:ev.jenisKegiatan,catatan:ev.catatan||"",lokasi:ev.lokasi||"",untukPimpinan:ev.untukPimpinan,undanganFile:ev.undanganFile||null,undanganNama:ev.undanganNama||""});setEditId(ev.id);setTab("form");}}
+            style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:ev._requiresEdit?"#D97706":"#64748B",color:"white",cursor:"pointer",fontSize:13,fontWeight:800}}>
+            ✏️ {ev._requiresEdit?"Edit Jadwal (Wajib sebelum kirim ulang)":"Edit Jadwal"}
+          </button>
+          {/* SECONDARY: Kirim Ulang — hanya jika sudah diedit */}
+          {!ev._requiresEdit&&<button onClick={()=>{upd(ev.id,{alur:"menunggu_kasubbag",catatanTolak:"",_requiresEdit:false});showT("Dikirim ulang ke Kasubbag");
+            loadUsers().filter(u=>u.role==="kasubbag_protokol"&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"submit",submittedBy:user?.nama}));sendPush({targetRole:"kasubbag_protokol",title:"📋 Jadwal Dikirim Ulang",body:ev.namaAcara,url:"/",tag:"resubmit-"+ev.id});}}
+            style={{width:"100%",padding:"10px",borderRadius:10,border:"1.5px solid "+NAVY,background:"white",color:NAVY,cursor:"pointer",fontSize:13,fontWeight:700}}>
+            📤 Kirim Ulang ke Kasubbag
+          </button>}
+          {ev._requiresEdit&&<div style={{textAlign:"center",fontSize:11,color:"#94A3B8",fontStyle:"italic"}}>Edit jadwal terlebih dahulu, lalu tombol Kirim Ulang akan muncul</div>}
+        </>}
+        {/* ── DISETUJUI: Ajukan Pembatalan (destructive, terpisah) ── */}
+        {ev.alur==="disetujui"&&!ev.alurHapus&&ev.submittedBy===user?.username&&<>
+          <div style={{height:1,background:"#E2E8F0",margin:"4px 0"}}/>
+          <button onClick={()=>{upd(ev.id,{alurHapus:"menunggu_kasubbag"});showT("Permintaan pembatalan dikirim","warn");}}
+            style={{width:"100%",padding:"9px",borderRadius:9,border:"1.5px solid #FECACA",background:"#FFF5F5",color:"#991B1B",cursor:"pointer",fontSize:12,fontWeight:700}}>
+            Ajukan Pembatalan Jadwal
+          </button>
+        </>}
       </div>}
 
-      {/* KASUBBAG */}
-      {role==="kasubbag_protokol"&&<div style={{display:"flex",flexDirection:"column",gap:7}}>
-        {ev.alur==="menunggu_kasubbag"&&!ev.alurHapus&&<><button onClick={()=>{upd(ev.id,{alur:"menunggu_kabag"});showT("Diteruskan ke Kabag");
-            loadUsers().filter(u=>u.role==="kabag"&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"kasubbag_approve"}));sendPush({targetRole:"kabag",title:"✅ Menunggu Persetujuan Anda",body:ev.namaAcara+" — "+ev.jam+" WITA",url:"/",tag:"approve-"+ev.id});}} style={{padding:"11px",borderRadius:10,border:"none",background:"#10b981",color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Verifikasi & Teruskan ke Kabag</button>
-          <div style={{borderRadius:10,overflow:"hidden",border:"1.5px solid #fecaca"}}>
-            <textarea placeholder="Catatan penolakan..." value={rejectTexts[ev.id]||""} onChange={e=>setRT(p=>({...p,[ev.id]:e.target.value}))} rows={2} style={{width:"100%",padding:"9px 11px",border:"none",resize:"none",color:"#334155",background:"white",fontSize:13}}/>
-            <button onClick={()=>askConfirm("Tolak & Kembalikan ke Staf?","Jadwal '"+ev.namaAcara+"' akan dikembalikan dengan catatan penolakan.",()=>{upd(ev.id,{alur:"ditolak",catatanTolak:rejectTexts[ev.id]||""});showT("Dikembalikan","warn");{const _ur=loadUsers().find(u=>u.username===ev.submittedBy);if(_ur?.noWA)sendWA({to:_ur.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,event:"rejected",catatanTolak:rejectTexts[ev.id]||"",submittedBy:getNamaByUsername(ev.submittedBy)});}sendPush({targetRole:"staf",title:"❌ Jadwal Dikembalikan",body:ev.namaAcara+": "+(rejectTexts[ev.id]||"Perlu diperbaiki"),url:"/",tag:"rejected-"+ev.id});},"Tolak","#991b1b")} style={{width:"100%",padding:"10px",border:"none",background:"#fee2e2",color:"#991b1b",cursor:"pointer",fontSize:12,fontWeight:700}}>Tolak & Kembalikan ke Staf</button>
-          </div></>}
+      {/* KASUBBAG — Primary: Verifikasi | Destructive: Tolak (terpisah visual) */}
+      {role==="kasubbag_protokol"&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {ev.alur==="menunggu_kasubbag"&&!ev.alurHapus&&<>
+          {/* PRIMARY */}
+          <button onClick={()=>{upd(ev.id,{alur:"menunggu_kabag"});showT("Diteruskan ke Kabag");
+            loadUsers().filter(u=>u.role==="kabag"&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"kasubbag_approve"}));sendPush({targetRole:"kabag",title:"✅ Menunggu Persetujuan Anda",body:ev.namaAcara+" — "+ev.jam+" WITA",url:"/",tag:"approve-"+ev.id});}}
+            style={{width:"100%",padding:"13px",borderRadius:10,border:"none",background:"#10B981",color:"white",cursor:"pointer",fontSize:13,fontWeight:800,boxShadow:"0 4px 12px rgba(16,185,129,0.3)"}}>
+            ✅ Verifikasi & Teruskan ke Kabag
+          </button>
+          {/* DESTRUCTIVE — dipisah garis */}
+          <div style={{display:"flex",alignItems:"center",gap:8,margin:"2px 0"}}>
+            <div style={{flex:1,height:1,background:"#E2E8F0"}}/>
+            <span style={{fontSize:10,color:"#94A3B8",fontWeight:600}}>atau tolak</span>
+            <div style={{flex:1,height:1,background:"#E2E8F0"}}/>
+          </div>
+          <div style={{borderRadius:10,border:"1.5px solid #FECACA",overflow:"hidden"}}>
+            <textarea placeholder="Tulis alasan penolakan (wajib)..." value={rejectTexts[ev.id]||""} onChange={e=>setRT(p=>({...p,[ev.id]:e.target.value}))} rows={2} style={{width:"100%",padding:"9px 11px",border:"none",resize:"none",color:"#334155",background:"#FFF5F5",fontSize:13,boxSizing:"border-box"}}/>
+            <button onClick={()=>{if(!(rejectTexts[ev.id]||"").trim()){showT("Tulis alasan penolakan dulu","warn");return;}askConfirm("Tolak & Kembalikan ke Admin RK?","Jadwal '"+ev.namaAcara+"' akan dikembalikan dengan catatan penolakan.",()=>{upd(ev.id,{alur:"ditolak",catatanTolak:rejectTexts[ev.id]||"Perlu perbaikan",_requiresEdit:true});showT("Dikembalikan ke Admin RK","warn");{const _ur=loadUsers().find(u=>u.username===ev.submittedBy);if(_ur?.noWA)sendWA({to:_ur.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,event:"rejected",catatanTolak:rejectTexts[ev.id]||"",submittedBy:getNamaByUsername(ev.submittedBy)});}sendPush({targetRole:"admin_rk",title:"❌ Jadwal Dikembalikan",body:ev.namaAcara+": "+(rejectTexts[ev.id]||"Perlu diperbaiki"),url:"/",tag:"rejected-"+ev.id});},"Tolak","#991B1B");}}
+              style={{width:"100%",padding:"10px",border:"none",background:"#FEE2E2",color:"#991B1B",cursor:"pointer",fontSize:12,fontWeight:700}}>
+              ✕ Tolak & Kembalikan ke Admin RK
+            </button>
+          </div>
+        </>}
         {ev.alurHapus==="menunggu_kasubbag"&&<><div style={{background:"#fff1f2",borderRadius:9,padding:"9px 12px",fontSize:13,color:"#e11d48"}}>Staf mengajukan pembatalan jadwal ini</div>
           <div style={{display:"flex",gap:8}}><button onClick={()=>{upd(ev.id,{alurHapus:"menunggu_kabag"});showT("Diteruskan ke Kabag","warn");}} style={{flex:1,padding:"10px",borderRadius:10,border:"none",background:"#e11d48",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>Setuju ke Kabag</button><button onClick={()=>{upd(ev.id,{alurHapus:null});showT("Ditolak");}} style={{flex:1,padding:"10px",borderRadius:10,border:"1.5px solid #94a3b8",background:"white",color:"#334155",cursor:"pointer",fontSize:12,fontWeight:700}}>Tolak Hapus</button></div></>}
         {ev.alur==="disetujui"&&<button onClick={()=>setPenugasanEv(ev)} style={{width:"100%",padding:"10px",borderRadius:10,border:"1.5px dashed #cbd5e1",background:"#f8fafc",color:"#475569",cursor:"pointer",fontSize:12,fontWeight:700}}>
@@ -4688,12 +4764,27 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
 
       {/* KABAG */}
       {role==="kabag"&&<div style={{display:"flex",flexDirection:"column",gap:7}}>
-        {ev.alur==="menunggu_kabag"&&!ev.alurHapus&&<><button onClick={()=>{upd(ev.id,{alur:"disetujui"});showT("Jadwal disetujui & dipublikasi");
-            {const _u=loadUsers().find(u=>u.username===ev.submittedBy);if(_u?.noWA)sendWA({to:_u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"approved",submittedBy:getNamaByUsername(ev.submittedBy)});}sendPush({targetRole:"staf",title:"✅ Jadwal Disetujui",body:ev.namaAcara+" sudah dipublikasi",url:"/",tag:"approved-"+ev.id});}} style={{padding:"11px",borderRadius:10,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Setujui & Publikasi</button>
-          <div style={{borderRadius:10,overflow:"hidden",border:"1.5px solid #fecaca"}}>
-            <textarea placeholder="Catatan penolakan..." value={rejectTexts[ev.id]||""} onChange={e=>setRT(p=>({...p,[ev.id]:e.target.value}))} rows={2} style={{width:"100%",padding:"9px 11px",border:"none",resize:"none",color:"#334155",background:"white",fontSize:13}}/>
-            <button onClick={()=>askConfirm("Tolak Jadwal?","Jadwal '"+ev.namaAcara+"' akan dikembalikan ke staf.",()=>{upd(ev.id,{alur:"ditolak",catatanTolak:rejectTexts[ev.id]||""});showT("Ditolak","warn");{const _ur=loadUsers().find(u=>u.username===ev.submittedBy);if(_ur?.noWA)sendWA({to:_ur.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,event:"rejected",catatanTolak:rejectTexts[ev.id]||"",submittedBy:getNamaByUsername(ev.submittedBy)});}sendPush({targetRole:"staf",title:"❌ Jadwal Dikembalikan",body:ev.namaAcara+": "+(rejectTexts[ev.id]||"Perlu diperbaiki"),url:"/",tag:"rejected-"+ev.id});},"Tolak","#991b1b")} style={{width:"100%",padding:"10px",border:"none",background:"#fee2e2",color:"#991b1b",cursor:"pointer",fontSize:12,fontWeight:700}}>Tolak & Kembalikan</button>
-          </div></>}
+        {ev.alur==="menunggu_kabag"&&!ev.alurHapus&&<>
+          {/* PRIMARY */}
+          <button onClick={()=>{upd(ev.id,{alur:"disetujui"});showT("Jadwal disetujui & dipublikasi");
+            {const _u=loadUsers().find(u=>u.username===ev.submittedBy);if(_u?.noWA)sendWA({to:_u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"approved",submittedBy:getNamaByUsername(ev.submittedBy)});}sendPush({targetRole:"admin_rk",title:"✅ Jadwal Disetujui",body:ev.namaAcara+" sudah dipublikasi",url:"/",tag:"approved-"+ev.id});}}
+            style={{width:"100%",padding:"13px",borderRadius:10,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:14,fontWeight:800,boxShadow:"0 4px 14px rgba(10,22,40,0.3)"}}>
+            ✅ Setujui & Publikasi
+          </button>
+          {/* DESTRUCTIVE — dipisah garis */}
+          <div style={{display:"flex",alignItems:"center",gap:8,margin:"2px 0"}}>
+            <div style={{flex:1,height:1,background:"#E2E8F0"}}/>
+            <span style={{fontSize:10,color:"#94A3B8",fontWeight:600}}>atau tolak</span>
+            <div style={{flex:1,height:1,background:"#E2E8F0"}}/>
+          </div>
+          <div style={{borderRadius:10,border:"1.5px solid #FECACA",overflow:"hidden"}}>
+            <textarea placeholder="Tulis alasan penolakan (wajib)..." value={rejectTexts[ev.id]||""} onChange={e=>setRT(p=>({...p,[ev.id]:e.target.value}))} rows={2} style={{width:"100%",padding:"9px 11px",border:"none",resize:"none",color:"#334155",background:"#FFF5F5",fontSize:13,boxSizing:"border-box"}}/>
+            <button onClick={()=>{if(!(rejectTexts[ev.id]||"").trim()){showT("Tulis alasan penolakan dulu","warn");return;}askConfirm("Tolak Jadwal?","Jadwal '"+ev.namaAcara+"' akan dikembalikan ke Admin RK.",()=>{upd(ev.id,{alur:"ditolak",catatanTolak:rejectTexts[ev.id]||"Perlu perbaikan",_requiresEdit:true});showT("Ditolak","warn");{const _ur=loadUsers().find(u=>u.username===ev.submittedBy);if(_ur?.noWA)sendWA({to:_ur.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,event:"rejected",catatanTolak:rejectTexts[ev.id]||"",submittedBy:getNamaByUsername(ev.submittedBy)});}sendPush({targetRole:"admin_rk",title:"❌ Jadwal Ditolak Kabag",body:ev.namaAcara+": "+(rejectTexts[ev.id]||"Perlu diperbaiki"),url:"/",tag:"rejected-"+ev.id});},"Tolak","#991B1B");}}
+              style={{width:"100%",padding:"10px",border:"none",background:"#FEE2E2",color:"#991B1B",cursor:"pointer",fontSize:12,fontWeight:700}}>
+              ✕ Tolak & Kembalikan ke Admin RK
+            </button>
+          </div>
+        </>}
         {ev.alurHapus==="menunggu_kabag"&&<><div style={{background:"#fff1f2",borderRadius:9,padding:"9px 12px",fontSize:13,color:"#e11d48"}}>Permintaan penghapusan (sudah disetujui Kasubbag)</div>
           <div style={{display:"flex",gap:8}}><button onClick={()=>askConfirm("Hapus Jadwal Permanen?","Tindakan ini tidak dapat dibatalkan. Jadwal '"+ev.namaAcara+"' akan dihapus selamanya.",()=>{deleteAndSync(ev.id);setExp(null);showT("Jadwal dihapus");},"Hapus Permanen")} style={{flex:1,padding:"10px",borderRadius:10,border:"none",background:"#e11d48",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>Hapus Permanen</button><button onClick={()=>{upd(ev.id,{alurHapus:null});showT("Ditolak");}} style={{flex:1,padding:"10px",borderRadius:10,border:"1.5px solid #94a3b8",background:"white",color:"#334155",cursor:"pointer",fontSize:12,fontWeight:700}}>Tolak Hapus</button></div></>}
       </div>}
