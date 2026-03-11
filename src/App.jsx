@@ -152,7 +152,7 @@ if(typeof document!=="undefined"&&!document.getElementById("prokopim-anim")){
   document.head.appendChild(s);
 }
 
-const PAKAIAN=["PDH","PDH Batik Tarakan","Batik Lengan Panjang","Muslim","PSL","PSR","PSH","PDUB","Pakaian Lapangan","Pakaian Olahraga","Bebas Rapi","Lainnya"];
+const PAKAIAN=["PDH","PDH Batik Tarakan","Batik Lengan Panjang","Batik Muslim","PSL","PSR","PSH","PDUB","Pakaian Lapangan","Pakaian Olahraga","Bebas Rapi","Lainnya"];
 const JENIS=["Menghadiri","Sambutan","Pengarahan"];
 const PEJABAT=["Sekda","Asisten Pemerintahan dan Kesra","Asisten Perekonomian dan Pembangunan","Asisten Administrasi Umum"];
 const ROLES_WITH_REPORT=["staf","admin_rk","kasubbag_protokol","kasubbag_komdokpim","kabag","timkom"];
@@ -403,7 +403,7 @@ function useWindowWidth(){const[w,setW]=useState(typeof window!=="undefined"?win
 
 // ==================== SEED ====================
 const T=todayStr(),TMR=tomorrowStr();
-const mkEv=o=>({alur:"disetujui",catatanTolak:"",catatanKasubbag:"",catatanKabag:"",statusWK:null,statusWWK:null,perwakilanWK:"",perwakilanWWK:"",delegasiKeWWK:false,sambutanFile:null,sambutanNama:"",sambutanDocx:null,sambutanDocxNama:"",undanganFile:null,undanganNama:"",catatanPimpinan:"",tersembunyi:false,alurHapus:null,lokasi:"",personil:[],catatanPenugasan:"",evaluasi:{},...o});
+const mkEv=o=>({alur:"disetujui",catatanTolak:"",catatanKasubbag:"",catatanKabag:"",statusWK:null,statusWWK:null,perwakilanWK:"",perwakilanWWK:"",delegasiKeWWK:false,delegasiWWKJajaran:false,sambutanFile:null,sambutanNama:"",sambutanDocx:null,sambutanDocxNama:"",undanganFile:null,undanganNama:"",catatanPimpinan:"",tersembunyi:false,alurHapus:null,lokasi:"",personil:[],catatanPenugasan:"",evaluasi:{},...o});
 const seed=[
   mkEv({id:1,tanggal:T,jam:"09:00",namaAcara:"Rapat Koordinasi Infrastruktur",penyelenggara:"Dinas PUPR",kontak:"Budi 0812-3456-7890",buktiUndangan:"No.045/PUPR/2025",pakaian:"PDH",lokasi:"Ruang Rapat Lt.3 Balaikota Tarakan",jenisKegiatan:"Sambutan",catatan:"Ruang Rapat Lt.3",untukPimpinan:["walikota","wakilwalikota"]}),
   mkEv({id:2,tanggal:T,jam:"14:00",namaAcara:"Peresmian Taman Kota Baru",penyelenggara:"Dinas LH",kontak:"Sari 0813-9876-5432",buktiUndangan:"No.023/DLH/2025",pakaian:"Batik Lengan Panjang",lokasi:"Taman Kota Baru Tarakan",jenisKegiatan:"Sambutan",catatan:"Outdoor, bawa payung.",untukPimpinan:["walikota"],statusWK:"hadir"}),
@@ -860,7 +860,7 @@ function ReportingModal({events,onClose,kabagNama,cetakOleh}){
       return evs.map((ev,iInGroup)=>{
         nomor++;
         const wkS=ev.untukPimpinan.includes("walikota")?(ev.delegasiKeWWK?"Delegasi WWK":ev.statusWK==="hadir"?"Hadir":ev.statusWK==="tidak_hadir"?"Tidak Hadir":ev.statusWK==="diwakilkan"?"Diwakilkan"+(ev.perwakilanWK?" ("+ev.perwakilanWK+")":""):"-"):"-";
-        const wwkS=(ev.untukPimpinan.includes("wakilwalikota")||ev.delegasiKeWWK)?(ev.statusWWK==="hadir"?"Hadir":ev.statusWWK==="tidak_hadir"?"Tidak Hadir":ev.statusWWK==="diwakilkan"?"Diwakilkan"+(ev.perwakilanWWK?" ("+ev.perwakilanWWK+")":""):"-"):"-";
+        const wwkS=(ev.untukPimpinan.includes("wakilwalikota")||ev.delegasiKeWWK)?(ev.statusWWK==="hadir"?"Hadir":ev.statusWWK==="tidak_hadir"?"Tidak Hadir":ev.statusWWK==="diwakilkan"?"Delegasi"+(ev.perwakilanWWK?" ke "+ev.perwakilanWWK:""):"-"):"-";
         const tglCell=iInGroup===0?"<td class='nw' rowspan='"+evs.length+"' style='background:#EBF0FA;font-weight:700;color:#0B2545;vertical-align:middle;text-align:center;border-right:2px solid #CBD5E1'><strong>"+getHari(tgl)+"</strong><br><span style='font-size:7.5pt;font-weight:400'>"+fmtShort(tgl)+"</span></td>":"";
         return "<tr><td class='c'>"+nomor+"</td>"+tglCell+"<td class='c'><strong>"+ev.jam+" WITA</strong></td><td><strong>"+ev.namaAcara+"</strong><br><span style='font-size:7.5pt;color:#64748b'>"+ev.penyelenggara+"</span></td><td class='c "+(ev.jenisKegiatan==="Sambutan"?"u":ev.jenisKegiatan==="Pengarahan"?"b":"g")+"'>"+ev.jenisKegiatan+"</td><td>"+(ev.lokasi||"<em style='color:#cbd5e1'>-</em>")+"</td><td style='font-size:7.5pt'>"+( ev.kontak||"<em style='color:#cbd5e1'>-</em>" )+"</td><td class='c' style='font-size:7pt'>"+ev.pakaian+"</td><td class='c'>"+wkS+"</td><td class='c'>"+wwkS+"</td><td class='cat'></td></tr>";
       });
@@ -2554,6 +2554,28 @@ export default function App(){
         await sendPush({targetRole:u.role,title:"📋 Anda Ditugaskan",body:ev?.namaAcara+" · "+ev?.tanggal+" "+ev?.jam+" WITA"+(catatanPenugasan?" · "+catatanPenugasan:""),url:"/",tag:"penugasan-"+evId+"-"+un});
       }
     }
+    // ── WA darurat ke staf jika acara < 6 jam lagi ──────────────────────
+    if(ev&&personilArr.length>0){
+      try{
+        await fetch("/api/notif-penugasan",{
+          method:"POST",
+          headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.__CRON_SECRET||"")},
+          body:JSON.stringify({
+            evId,
+            namaAcara:ev.namaAcara,
+            tanggal:ev.tanggal,
+            jam:ev.jam,
+            lokasi:ev.lokasi||"",
+            pakaian:ev.pakaian||"",
+            penyelenggara:ev.penyelenggara||"",
+            catatanPenugasan:catatanPenugasan||"",
+            personil:personilArr,
+            pimpinan:ev.untukPimpinan||[],
+            delegasiKeWWK:ev.delegasiKeWWK||false,
+          })
+        });
+      }catch(e){console.warn("notif-penugasan API error:",e);}
+    }
   };
 
   // ── Cek jadwal belum ditugaskan (notif H-12) ──
@@ -2630,7 +2652,24 @@ export default function App(){
     if(!form.namaAcara||!form.tanggal||!form.jam){showT("Nama acara, tanggal & jam wajib diisi.","error");return;}
     const conflict=hasConflict(events,{...form,id:editId||0,alur:"disetujui"});
     if(editId!==null){setEvents(p=>{const next=p.map(e=>e.id===editId?{...e,...form}:e);const u=next.find(e=>e.id===editId);if(u)dbUpsert(u).catch(console.error);return next;});showT("Jadwal diperbarui");setEditId(null);}
-    else{const n={...form,id:Date.now(),alur:"draft",submittedBy:user?.username,catatanTolak:"",statusWK:null,statusWWK:null,perwakilanWK:"",perwakilanWWK:"",delegasiKeWWK:false,sambutanFile:null,sambutanNama:"",catatanPimpinan:"",tersembunyi:false,alurHapus:null};setEvents(p=>[...p,n]);dbUpsert(n).catch(console.error);if(conflict)showT("Potensi tabrakan jadwal!","warn");else showT("Draft disimpan. Kirim ke Kasubbag.");}
+    else{const n={...form,id:Date.now(),alur:"draft",submittedBy:user?.username,catatanTolak:"",statusWK:null,statusWWK:null,perwakilanWK:"",perwakilanWWK:"",delegasiKeWWK:false,sambutanFile:null,sambutanNama:"",catatanPimpinan:"",tersembunyi:false,alurHapus:null};setEvents(p=>[...p,n]);dbUpsert(n).catch(console.error);if(conflict)showT("Potensi tabrakan jadwal!","warn");else showT("Draft disimpan. Kirim ke Kasubbag.");
+      // ── Notif WA ke Ajudan jika undangan masuk setelah 16.00 WITA ───
+      const jamWITA=new Date().getUTCHours()+8;const jamLokal=jamWITA>=24?jamWITA-24:jamWITA;
+      if(jamLokal>=16){
+        const tgtRoles=[];
+        if((form.untukPimpinan||[]).includes("walikota"))tgtRoles.push("ajudan_walikota");
+        if((form.untukPimpinan||[]).includes("wakilwalikota"))tgtRoles.push("ajudan_wakilwalikota");
+        const allU=loadUsers();
+        for(const tRole of tgtRoles){
+          const ajudan=allU.filter(u=>u.role===tRole&&u.noWA);
+          const labelPim=tRole==="ajudan_walikota"?"Wali Kota":"Wakil Wali Kota";
+          for(const aj of ajudan){
+            await sendWA({to:aj.noWA,namaAcara:form.namaAcara,tanggal:form.tanggal,jam:form.jam,penyelenggara:form.penyelenggara,lokasi:form.lokasi,event:"undangan_sore",labelPimpinan:labelPim});
+          }
+          await sendPush({targetRole:tRole,title:"🔔 Undangan Baru Masuk",body:form.namaAcara+" · "+form.tanggal+" "+form.jam+" WITA — Mohon konfirmasi ke "+labelPim,url:"/",tag:"undangan-sore-"+Date.now()});
+        }
+      }
+    }
     setForm(emptyForm);setTab(role==="admin_rk"?"draft":"jadwal");
   };
 
@@ -3424,7 +3463,7 @@ function AjudanDashboard({events, user, upd, showT, setDelegTarget, isMobile}){
   const isAjWWK = role==="ajudan_wakilwalikota";
   const needsConfirm = approved.filter(e=>{
     const hasWK = isAjWK && e.untukPimpinan.includes("walikota") && !e.statusWK && !e.delegasiKeWWK;
-    const hasWWK = isAjWWK && (e.untukPimpinan.includes("wakilwalikota")||e.delegasiKeWWK) && !e.statusWWK;
+    const hasWWK = isAjWWK && (e.untukPimpinan.includes("wakilwalikota")||e.delegasiKeWWK) && (!e.statusWWK||e.statusWWK==="");
     return (hasWK||hasWWK) && (e.tanggal===todayS||e.tanggal===tmrwS);
   });
   const allToday = approved.filter(e=>e.tanggal===todayS);
@@ -3475,7 +3514,9 @@ function AjudanDashboard({events, user, upd, showT, setDelegTarget, isMobile}){
               <StatusBtn label="✗ Tidak Hadir" active={ev.statusWK==="tidak_hadir"} color="#991b1b"
                 onClick={()=>{upd(ev.id,{statusWK:"tidak_hadir",statusWK_by:"ajudan"});showT("WK: Tidak Hadir");}}/>
               <StatusBtn label="→ Delegasi WWK" active={ev.delegasiKeWWK} color="#7C3AED"
-                onClick={()=>{upd(ev.id,{statusWK:"diwakilkan",delegasiKeWWK:true,perwakilanWK:"",statusWK_by:"ajudan"});showT("Delegasi ke WWK diinput");}}/>
+                onClick={()=>{upd(ev.id,{statusWK:"diwakilkan",delegasiKeWWK:true,perwakilanWK:"",statusWK_by:"ajudan"});showT("Delegasi ke WWK diinput");
+                  sendPush({targetRole:"ajudan_wakilwalikota",title:"↩ Disposisi dari Wali Kota",body:ev.namaAcara+" — "+ev.jam+" WITA: Wali Kota mendelegasikan ke Wakil WK",url:"/",tag:"delegasi-wwk-"+ev.id});
+                  loadUsers().filter(u=>u.role==="ajudan_wakilwalikota"&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"delegasi_wwk"}));}}/>
               {ev.statusWK&&<button onClick={()=>{upd(ev.id,{statusWK:"",delegasiKeWWK:false,perwakilanWK:"",statusWK_by:""});showT("Kehadiran WK dibatalkan","warn");}} style={{width:"100%",marginTop:6,padding:"7px",borderRadius:9,border:"1.5px dashed #94a3b8",background:"#f8fafc",color:"#64748b",cursor:"pointer",fontSize:11,fontWeight:600}}>↩ Batalkan Input Kehadiran WK</button>}
             </div>
             <button onClick={()=>setDelegTarget({id:ev.id,side:"wk"})}
@@ -3486,17 +3527,36 @@ function AjudanDashboard({events, user, upd, showT, setDelegTarget, isMobile}){
           </div>}
           {/* WWK */}
           {forWWK&&<div>
+            {/* Info disposisi WK — ditampilkan ke ajudan WWK */}
+            {(ev.statusWK||ev.delegasiKeWWK)&&<div style={{background:ev.delegasiKeWWK?"#EDE9FE":ev.statusWK==="hadir"?"#F0FDF4":ev.statusWK==="tidak_hadir"?"#FFF1F2":"#F8FAFC",border:"1.5px solid "+(ev.delegasiKeWWK?"#7c3aed":ev.statusWK==="hadir"?"#6ee7b7":ev.statusWK==="tidak_hadir"?"#fca5a5":"#e2e8f0"),borderRadius:9,padding:"8px 12px",marginBottom:10,display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:18,flexShrink:0}}>{ev.delegasiKeWWK?"↩":ev.statusWK==="hadir"?"✅":"❌"}</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:10,fontWeight:800,color:"#475569",textTransform:"uppercase",letterSpacing:0.5,marginBottom:1}}>Info Kehadiran Wali Kota</div>
+                <div style={{fontSize:12,fontWeight:700,color:ev.delegasiKeWWK?"#7c3aed":ev.statusWK==="hadir"?"#065f46":"#991b1b"}}>
+                  {ev.delegasiKeWWK?"Didelegasikan ke Wakil Wali Kota":ev.statusWK==="hadir"?"Wali Kota Hadir":ev.statusWK==="tidak_hadir"?"Wali Kota Tidak Hadir":ev.perwakilanWK?"Diwakilkan ke "+ev.perwakilanWK:"—"}
+                </div>
+                {ev.statusWK_by&&<div style={{fontSize:9,color:"#94a3b8",marginTop:1}}>Diisi: {ev.statusWK_by==="ajudan"?"Ajudan WK":ev.statusWK_by==="walikota"?"Wali Kota langsung":"—"}</div>}
+              </div>
+            </div>}
+            {ev.delegasiKeWWK&&<div style={{background:"#7c3aed",borderRadius:6,padding:"5px 10px",marginBottom:8,fontSize:10,fontWeight:800,color:"white",letterSpacing:0.5}}>↩ ANDA MENERIMA DISPOSISI DARI WALI KOTA</div>}
             <div style={{fontSize:11,fontWeight:700,color:GREEN,textTransform:"uppercase",letterSpacing:0.5,marginBottom:5}}>
               Wakil Wali Kota &nbsp;
               {ev.statusWWK_by==="ajudan"&&<span style={{background:"#FEF9C3",color:"#92400E",borderRadius:4,padding:"1px 5px",fontSize:9,fontWeight:800}}>diisi Ajudan</span>}
             </div>
-            <div style={{display:"flex",gap:8}}>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               <StatusBtn label="✓ Hadir" active={ev.statusWWK==="hadir"} color={GREEN}
-                onClick={()=>{upd(ev.id,{statusWWK:"hadir",statusWWK_by:"ajudan"});showT("Kehadiran WWK diinput");}}/>
+                onClick={()=>{upd(ev.id,{statusWWK:"hadir",statusWWK_by:"ajudan",delegasiWWKJajaran:false,perwakilanWWK:""});showT("Kehadiran WWK diinput");}}/>
               <StatusBtn label="✗ Tidak Hadir" active={ev.statusWWK==="tidak_hadir"} color="#991b1b"
-                onClick={()=>{upd(ev.id,{statusWWK:"tidak_hadir",statusWWK_by:"ajudan"});showT("WWK: Tidak Hadir");}}/>
-              {ev.statusWWK&&<button onClick={()=>{upd(ev.id,{statusWWK:"",statusWWK_by:""});showT("Kehadiran WWK dibatalkan","warn");}} style={{width:"100%",marginTop:6,padding:"7px",borderRadius:9,border:"1.5px dashed #94a3b8",background:"#f8fafc",color:"#64748b",cursor:"pointer",fontSize:11,fontWeight:600}}>↩ Batalkan Input Kehadiran WWK</button>}
+                onClick={()=>{upd(ev.id,{statusWWK:"tidak_hadir",statusWWK_by:"ajudan",delegasiWWKJajaran:false});showT("WWK: Tidak Hadir");}}/>
+              <StatusBtn label="→ Delegasikan" active={ev.statusWWK==="diwakilkan"} color="#7c3aed"
+                onClick={()=>{upd(ev.id,{statusWWK:"diwakilkan",delegasiWWKJajaran:true,statusWWK_by:"ajudan"});showT("WWK: Pilih Jajaran");}}/>
             </div>
+            {ev.statusWWK==="diwakilkan"&&<div style={{marginTop:8}}>
+              <input value={ev.perwakilanWWK||""} onChange={e=>upd(ev.id,{perwakilanWWK:e.target.value})}
+                placeholder="Nama pejabat yang mewakili WWK..." style={{width:"100%",padding:"8px 10px",borderRadius:8,border:"1.5px solid #CBD5E1",fontSize:12,boxSizing:"border-box",marginBottom:4}}/>
+              <button onClick={()=>setDelegTarget({id:ev.id,side:"wwk"})} style={{width:"100%",padding:"7px",borderRadius:8,border:"1.5px dashed #7c3aed",background:"#faf5ff",color:"#7c3aed",cursor:"pointer",fontSize:11,fontWeight:700}}>Pilih dari Daftar Pejabat</button>
+            </div>}
+            {ev.statusWWK&&<button onClick={()=>{upd(ev.id,{statusWWK:"",statusWWK_by:"",perwakilanWWK:"",delegasiWWKJajaran:false});showT("Kehadiran WWK dibatalkan","warn");}} style={{width:"100%",marginTop:6,padding:"7px",borderRadius:9,border:"1.5px dashed #94a3b8",background:"#f8fafc",color:"#64748b",cursor:"pointer",fontSize:11,fontWeight:600}}>↩ Batalkan Input Kehadiran WWK</button>}
           </div>}
         </div>
       </div>
@@ -4771,13 +4831,13 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
             💬 {ev.catatanPimpinan}
           </div>}
 
-          {/* Aksi kehadiran — hanya untuk pimpinan */}
-          {(role==="walikota"||role==="wakilwalikota")&&<div style={{marginBottom:10}}>
+          {/* Aksi kehadiran — hanya untuk Wali Kota (WWK punya panel disposisi sendiri di bawah) */}
+          {role==="walikota"&&<div style={{marginBottom:10}}>
             <div style={{fontSize:11,fontWeight:700,color:"#475569",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Konfirmasi Kehadiran</div>
             <div style={{display:"flex",gap:8}}>
               {[{s:"hadir",l:"✓  Saya Hadir",c:GREEN},{s:"tidak_hadir",l:"✗  Tidak Hadir",c:"#991B1B"}].map(({s,l,c})=>(
                 <button key={s} onClick={e=>{e.stopPropagation();
-                  role==="walikota"?upd(ev.id,{statusWK:s,delegasiKeWWK:false,perwakilanWK:"",statusWK_by:"walikota"}):upd(ev.id,{statusWWK:s,statusWWK_by:"wakilwalikota"});
+                  upd(ev.id,{statusWK:s,delegasiKeWWK:false,perwakilanWK:"",statusWK_by:"walikota"});
                   showT("Kehadiran berhasil dikonfirmasi");
                 }} style={{flex:1,padding:"13px 8px",borderRadius:12,cursor:"pointer",fontWeight:800,fontSize:13,border:"2px solid "+c,background:statusWK(ev)===s?c:"white",color:statusWK(ev)===s?"white":c,transition:"all 0.15s"}}>{l}</button>
               ))}
@@ -4788,7 +4848,10 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
           {role==="walikota"&&<div style={{marginBottom:8}}>
             <div style={{fontSize:11,fontWeight:700,color:"#475569",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Disposisi Kehadiran</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              <button onClick={e=>{e.stopPropagation();upd(ev.id,{statusWK:"diwakilkan",delegasiKeWWK:true,perwakilanWK:"",statusWK_by:"walikota"});showT("Didelegasi ke Wakil Wali Kota");}} style={{flex:1,minWidth:140,padding:"11px",borderRadius:10,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,background:ev.delegasiKeWWK?GREEN:"#ECFDF5",color:ev.delegasiKeWWK?"white":GREEN}}>
+              <button onClick={e=>{e.stopPropagation();upd(ev.id,{statusWK:"diwakilkan",delegasiKeWWK:true,perwakilanWK:"",statusWK_by:"walikota"});showT("Didelegasi ke Wakil Wali Kota");
+                sendPush({targetRole:"ajudan_wakilwalikota",title:"↩ Disposisi dari Wali Kota",body:ev.namaAcara+" — "+ev.jam+" WITA",url:"/",tag:"delegasi-wwk-"+ev.id});
+                loadUsers().filter(u=>u.role==="ajudan_wakilwalikota"&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"delegasi_wwk"}));
+              }} style={{flex:1,minWidth:140,padding:"11px",borderRadius:10,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,background:ev.delegasiKeWWK?GREEN:"#ECFDF5",color:ev.delegasiKeWWK?"white":GREEN}}>
                 {ev.delegasiKeWWK?"✓ Delegasi ke Wawali":"Delegasi ke Wakil WK"}
               </button>
               <button onClick={e=>{e.stopPropagation();setDelegTarget({id:ev.id,side:"wk"});}} style={{flex:1,minWidth:140,padding:"11px",borderRadius:10,border:"1.5px solid #CBD5E1",cursor:"pointer",fontWeight:600,fontSize:12,background:"white",color:"#475569"}}>
@@ -4801,11 +4864,48 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
           </div>}
 
           
-          {/* Batalkan Disposisi — untuk Wakil Wali Kota jika disposisi salah */}
-          {role==="wakilwalikota"&&ev.delegasiKeWWK&&<div style={{marginBottom:8}}>
-            <button onClick={e=>{e.stopPropagation();upd(ev.id,{delegasiKeWWK:false,statusWK:null,statusWK_by:"",perwakilanWK:""});showT("Disposisi dari Wali Kota dibatalkan","warn");}} style={{width:"100%",padding:"9px",borderRadius:9,border:"1.5px dashed #FCA5A5",background:"#FFF5F5",color:"#DC2626",cursor:"pointer",fontSize:12,fontWeight:700}}>
-              ↩ Batalkan Disposisi dari Wali Kota
+          {/* Info disposisi WK — untuk Wakil Wali Kota (terima disposisi) */}
+          {role==="wakilwalikota"&&ev.delegasiKeWWK&&<div style={{background:"#EDE9FE",border:"1.5px solid #7c3aed",borderRadius:10,padding:"10px 14px",marginBottom:12}}>
+            <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+              <span style={{fontSize:18}}>↩</span>
+              <div>
+                <div style={{fontSize:10,fontWeight:800,color:"#5b21b6",textTransform:"uppercase",letterSpacing:0.5}}>Disposisi dari Wali Kota</div>
+                <div style={{fontSize:12,fontWeight:700,color:"#7c3aed"}}>
+                  {ev.statusWK_by==="walikota"?"Ditetapkan langsung oleh Wali Kota":"Diinput oleh Ajudan WK"}
+                </div>
+              </div>
+            </div>
+            <div style={{fontSize:11,fontWeight:700,color:"#475569",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Konfirmasi Kehadiran Wakil Wali Kota</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
+              {[{s:"hadir",l:"✓  Saya Hadir",c:GREEN},{s:"tidak_hadir",l:"✗  Tidak Hadir",c:"#991B1B"}].map(({s,l,c})=>(
+                <button key={s} onClick={e=>{e.stopPropagation();upd(ev.id,{statusWWK:s,statusWWK_by:"wakilwalikota",delegasiWWKJajaran:false,perwakilanWWK:""});showT("Kehadiran berhasil dikonfirmasi");}}
+                  style={{flex:1,padding:"11px 8px",borderRadius:11,cursor:"pointer",fontWeight:800,fontSize:12,border:"2px solid "+c,background:ev.statusWWK===s?c:"white",color:ev.statusWWK===s?"white":c,transition:"all 0.15s"}}>{l}</button>
+              ))}
+            </div>
+            <button onClick={e=>{e.stopPropagation();upd(ev.id,{statusWWK:"diwakilkan",delegasiWWKJajaran:true,statusWWK_by:"wakilwalikota"});showT("Pilih pejabat yang mewakili");}}
+              style={{width:"100%",padding:"10px",borderRadius:10,border:"1.5px solid #7c3aed",background:ev.statusWWK==="diwakilkan"?"#7c3aed":"white",color:ev.statusWWK==="diwakilkan"?"white":"#7c3aed",cursor:"pointer",fontSize:12,fontWeight:700,marginBottom:ev.statusWWK==="diwakilkan"?8:0}}>
+              {ev.statusWWK==="diwakilkan"?"✓ Didelegasikan ke Jajaran Lain":"→ Delegasikan ke Jajaran Lain"}
             </button>
+            {ev.statusWWK==="diwakilkan"&&<div style={{marginTop:4}}>
+              <input value={ev.perwakilanWWK||""} onChange={e=>upd(ev.id,{perwakilanWWK:e.target.value})}
+                placeholder="Nama pejabat yang mewakili..." style={{width:"100%",padding:"8px 10px",borderRadius:8,border:"1.5px solid #CBD5E1",fontSize:12,boxSizing:"border-box"}}/>
+            </div>}
+          </div>}
+          {/* Wakilwalikota tanpa disposisi WK — konfirmasi langsung */}
+          {role==="wakilwalikota"&&!ev.delegasiKeWWK&&ev.untukPimpinan.includes("wakilwalikota")&&<div style={{marginBottom:10}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#475569",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Konfirmasi Kehadiran</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
+              {[{s:"hadir",l:"✓  Saya Hadir",c:GREEN},{s:"tidak_hadir",l:"✗  Tidak Hadir",c:"#991B1B"}].map(({s,l,c})=>(
+                <button key={s} onClick={e=>{e.stopPropagation();upd(ev.id,{statusWWK:s,statusWWK_by:"wakilwalikota",delegasiWWKJajaran:false,perwakilanWWK:""});showT("Kehadiran berhasil dikonfirmasi");}}
+                  style={{flex:1,padding:"13px 8px",borderRadius:12,cursor:"pointer",fontWeight:800,fontSize:13,border:"2px solid "+c,background:ev.statusWWK===s?c:"white",color:ev.statusWWK===s?"white":c,transition:"all 0.15s"}}>{l}</button>
+              ))}
+            </div>
+            <button onClick={e=>{e.stopPropagation();upd(ev.id,{statusWWK:"diwakilkan",delegasiWWKJajaran:true,statusWWK_by:"wakilwalikota"});}}
+              style={{width:"100%",padding:"10px",borderRadius:10,border:"1.5px solid #7c3aed",background:ev.statusWWK==="diwakilkan"?"#7c3aed":"white",color:ev.statusWWK==="diwakilkan"?"white":"#7c3aed",cursor:"pointer",fontSize:12,fontWeight:700}}>
+              {ev.statusWWK==="diwakilkan"?"✓ Didelegasikan":"→ Delegasikan ke Jajaran Lain"}
+            </button>
+            {ev.statusWWK==="diwakilkan"&&<input value={ev.perwakilanWWK||""} onChange={e=>upd(ev.id,{perwakilanWWK:e.target.value})}
+              placeholder="Nama pejabat yang mewakili..." style={{width:"100%",marginTop:8,padding:"8px 10px",borderRadius:8,border:"1.5px solid #CBD5E1",fontSize:12,boxSizing:"border-box"}}/>}
           </div>}
 
           {/* Catatan pimpinan — hanya pimpinan yang bisa edit */}
