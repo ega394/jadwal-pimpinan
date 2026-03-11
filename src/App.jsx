@@ -2645,7 +2645,7 @@ export default function App(){
   });
   const goToPending=()=>{if(!pendingList.length)return;setFDate("");setExp(pendingList[0].id);setTimeout(()=>document.getElementById("ev-"+pendingList[0].id)?.scrollIntoView({behavior:"smooth",block:"center"}),200);};
 
-  const submit=()=>{
+  const submit=async()=>{
     if(!form.namaAcara||!form.tanggal||!form.jam){showT("Nama acara, tanggal & jam wajib diisi.","error");return;}
     const conflict=hasConflict(events,{...form,id:editId||0,alur:"disetujui"});
     if(editId!==null){setEvents(p=>{const next=p.map(e=>e.id===editId?{...e,...form}:e);const u=next.find(e=>e.id===editId);if(u)dbUpsert(u).catch(console.error);return next;});showT("Jadwal diperbarui");setEditId(null);}
