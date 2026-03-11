@@ -9,7 +9,11 @@
   "crons": [
     {
       "path": "/api/rekap-harian",
-      "schedule": "0 8 * * *"
+      "schedule": "25 8 * * *"
+    },
+    {
+      "path": "/api/reminder-pagi",
+      "schedule": "23 23 * * *"
     }
   ],
   "rewrites": [
