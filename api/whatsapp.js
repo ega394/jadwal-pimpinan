@@ -28,6 +28,7 @@ export default async function handler(req, res) {
     event,
     submittedBy,
     catatanTolak,
+    labelPimpinan,
   } = req.body || {};
 
   if (!to) {
@@ -90,6 +91,37 @@ export default async function handler(req, res) {
       infoJadwal +
       catatan +
       `\n\nSilakan perbaiki dan kirim ulang melalui sistem.\n` +
+      `_Sistem Jadwal Pimpinan Kota Tarakan_`;
+
+  } else if (event === "undangan_sore") {
+    // ── Notif ke ajudan: ada undangan masuk sore/malam (≥16.00 WITA) ──
+    const pim = labelPimpinan ? `*${labelPimpinan}*` : "Pimpinan";
+    pesan =
+      `🔔 *Undangan Baru Masuk (Petang/Malam)*\n\n` +
+      infoJadwal +
+      `\n\n` +
+      `⏰ Undangan ini baru diterima *setelah pukul 16.00 WITA*.\n\n` +
+      `Mohon segera:\n` +
+      `1️⃣ Informasikan ke ${pim}\n` +
+      `2️⃣ Konfirmasi kehadiran melalui sistem\n` +
+      `3️⃣ Pastikan persiapan sudah matang sebelum hari pelaksanaan\n\n` +
+      `✅ Cek & konfirmasi di:\n` +
+      `prokopim.tarakankota.go.id\n` +
+      `_Sistem Jadwal Pimpinan Kota Tarakan_`;
+
+  } else if (event === "delegasi_wwk") {
+    // ── Notif ke ajudan WWK: WK mendelegasikan ke Wakil WK ──
+    pesan =
+      `↩️ *Disposisi dari Wali Kota*\n\n` +
+      `Wali Kota telah *mendelegasikan* kehadiran pada kegiatan berikut kepada Wakil Wali Kota:\n\n` +
+      infoJadwal +
+      `\n\n` +
+      `📌 Mohon segera:\n` +
+      `1️⃣ Informasikan ke Wakil Wali Kota\n` +
+      `2️⃣ Input konfirmasi kehadiran Wakil WK di sistem\n` +
+      `3️⃣ Siapkan berkas/naskah yang diperlukan\n\n` +
+      `✅ Cek detail di:\n` +
+      `prokopim.tarakankota.go.id\n` +
       `_Sistem Jadwal Pimpinan Kota Tarakan_`;
 
   } else {
