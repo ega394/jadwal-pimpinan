@@ -847,7 +847,153 @@ function SummaryModal({events,onToggleHide,onClose}){
 }
 
 
-// ==================== REPORTING MODAL ====================
+// ==================== BROADCAST MODAL ====================
+function BroadcastModal({onClose,showT,senderNama}){
+  const NAVY="#0A1628";
+  const DEFAULT_MSG=`📢 *PENGUMUMAN*
+Yth. teman-teman Bagian Protokol dan Komunikasi Pimpinan Setda Kota Tarakan dan para mitra kerja yang baik hatinya.
+━━━━━━━━━━━━━━━━━━━━━
+
+Dengan hormat,
+
+Diinformasikan kepada seluruh tim Prokopim bahwa Sistem Terpadu Jadwal dan Agenda Kegiatan Pimpinan kini telah resmi beroperasi melalui domain:
+
+🌐 *https://prokopim.tarakankota.go.id*
+
+Mulai hari ini, seluruh aktivitas penginputan, persetujuan, dan pemantauan jadwal pimpinan dilakukan melalui alamat tersebut.
+
+📌 *Yang perlu dilakukan:*
+• Akses melalui link di atas
+• Simpan/bookmark di browser Anda
+• Bagi pengguna HP: tambahkan ke layar utama (Add to Home Screen)
+• Login menggunakan akun yang sudah dimiliki
+
+⚠️ Link lama (Vercel) tidak lagi digunakan.
+
+Apabila mengalami kendala akses, jangan ragu untuk bertanya.
+
+Terima kasih dan salam sayang 🫶
+
+_${senderNama||"Kabag Protokol dan Komunikasi Pimpinan"}_
+_Setda Kota Tarakan_`;
+
+  const[pesan,setPesan]=React.useState(DEFAULT_MSG);
+  const[status,setStatus]=React.useState("idle"); // idle|sending|done|error
+  const[log,setLog]=React.useState([]);
+  const[errMsg,setErrMsg]=React.useState("");
+
+  const allUsers=loadUsers();
+  const targets=allUsers.filter(u=>u.noWA&&u.noWA.trim());
+
+  const kirim=async()=>{
+    if(!pesan.trim()){showT("Pesan tidak boleh kosong","warn");return;}
+    if(targets.length===0){showT("Tidak ada pengguna dengan nomor WA","warn");return;}
+    setStatus("sending");setLog([]);setErrMsg("");
+    const results=[];
+    for(const u of targets){
+      try{
+        const resp=await fetch("/api/whatsapp",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({to:u.noWA,pesan,event:"broadcast"})
+        });
+        const ok=resp.ok;
+        results.push({nama:u.nama||u.username,ok});
+      }catch(e){
+        results.push({nama:u.nama||u.username,ok:false});
+      }
+      setLog([...results]);
+      await new Promise(r=>setTimeout(r,350)); // jeda antar kirim
+    }
+    const berhasil=results.filter(r=>r.ok).length;
+    setStatus("done");
+    showT(`Pengumuman terkirim ke ${berhasil}/${results.length} pengguna`,"ok");
+  };
+
+  const berhasil=log.filter(r=>r.ok).length;
+  const gagal=log.filter(r=>!r.ok).length;
+
+  return <div style={{position:"fixed",inset:0,zIndex:8100,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+    <div style={{background:"white",borderRadius:16,width:"100%",maxWidth:520,maxHeight:"92vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      {/* Header */}
+      <div style={{padding:"16px 20px 12px",borderBottom:"1px solid #f1f5f9",display:"flex",alignItems:"center",gap:10,background:"linear-gradient(135deg,#0A1628,#1B4080)",borderRadius:"16px 16px 0 0"}}>
+        <div style={{flex:1}}>
+          <div style={{fontSize:16,fontWeight:700,color:"white"}}>📢 Kirim Pengumuman</div>
+          <div style={{fontSize:12,color:"#93C5FD",marginTop:2}}>WA blast ke {targets.length} pengguna terdaftar</div>
+        </div>
+        <button onClick={onClose} style={{background:"rgba(255,255,255,0.15)",border:"none",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontSize:13,color:"white",fontWeight:700}}>✕</button>
+      </div>
+
+      <div style={{flex:1,overflowY:"auto",padding:"16px 20px 20px"}}>
+        {status==="idle"&&<>
+          {/* Daftar penerima */}
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#475569",marginBottom:8}}>Penerima ({targets.length} orang)</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+              {targets.map(u=><span key={u.username} style={{fontSize:10,padding:"3px 8px",borderRadius:10,background:"#EFF6FF",color:"#1D4ED8",fontWeight:600}}>{u.nama||u.username}</span>)}
+            </div>
+            {targets.length===0&&<div style={{padding:"10px",background:"#fef3c7",borderRadius:8,fontSize:12,color:"#92400e"}}>⚠️ Belum ada pengguna dengan nomor WA terdaftar</div>}
+          </div>
+
+          {/* Isi pesan */}
+          <div style={{marginBottom:14}}>
+            <label style={{display:"block",fontSize:12,fontWeight:700,color:"#475569",marginBottom:6}}>Isi Pengumuman</label>
+            <textarea value={pesan} onChange={e=>setPesan(e.target.value)} rows={14}
+              style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:12,fontFamily:"monospace",lineHeight:1.6,resize:"vertical",boxSizing:"border-box",color:"#1e293b"}}/>
+            <div style={{fontSize:10,color:"#94a3b8",marginTop:4,textAlign:"right"}}>{pesan.length} karakter</div>
+          </div>
+
+          <button onClick={kirim} disabled={targets.length===0}
+            style={{width:"100%",padding:"14px",borderRadius:12,border:"none",
+              background:targets.length>0?"linear-gradient(135deg,#0A1628,#1B4080)":"#E2E8F0",
+              color:targets.length>0?"white":"#94A3B8",cursor:targets.length>0?"pointer":"default",
+              fontWeight:700,fontSize:14}}>
+            📤 Kirim ke Semua ({targets.length} orang)
+          </button>
+        </>}
+
+        {status==="sending"&&<>
+          <div style={{textAlign:"center",padding:"12px 0 18px"}}>
+            <div style={{width:48,height:48,border:"4px solid #e0e7ff",borderTopColor:NAVY,borderRadius:"50%",animation:"spin 0.9s linear infinite",margin:"0 auto 14px"}}/>
+            <div style={{fontSize:14,fontWeight:700,color:NAVY,marginBottom:4}}>Mengirim pengumuman...</div>
+            <div style={{fontSize:12,color:"#64748b"}}>{log.length} / {targets.length} terkirim</div>
+            <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
+          </div>
+          {/* Progress bar */}
+          <div style={{height:6,background:"#e2e8f0",borderRadius:4,overflow:"hidden",marginBottom:14}}>
+            <div style={{height:"100%",background:"linear-gradient(90deg,#0A1628,#3B82F6)",borderRadius:4,width:(log.length/targets.length*100)+"%",transition:"width 0.3s"}}/>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            {log.map((r,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:8,background:r.ok?"#f0fdf4":"#fef2f2"}}>
+              <span style={{fontSize:13}}>{r.ok?"✅":"❌"}</span>
+              <span style={{fontSize:12,color:r.ok?"#15803d":"#b91c1c",fontWeight:600}}>{r.nama}</span>
+            </div>)}
+          </div>
+        </>}
+
+        {status==="done"&&<>
+          <div style={{textAlign:"center",padding:"20px 0 16px"}}>
+            <div style={{fontSize:42,marginBottom:10}}>🎉</div>
+            <div style={{fontSize:16,fontWeight:800,color:NAVY,marginBottom:4}}>Pengumuman Terkirim!</div>
+            <div style={{fontSize:13,color:"#64748b"}}>
+              <span style={{color:"#15803d",fontWeight:700}}>{berhasil} berhasil</span>
+              {gagal>0&&<> · <span style={{color:"#b91c1c",fontWeight:700}}>{gagal} gagal</span></>}
+            </div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:16}}>
+            {log.map((r,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:8,background:r.ok?"#f0fdf4":"#fef2f2"}}>
+              <span style={{fontSize:13}}>{r.ok?"✅":"❌"}</span>
+              <span style={{fontSize:12,color:r.ok?"#15803d":"#b91c1c",fontWeight:600}}>{r.nama}</span>
+            </div>)}
+          </div>
+          <button onClick={onClose} style={{width:"100%",padding:"13px",borderRadius:12,border:"none",background:NAVY,color:"white",fontWeight:700,fontSize:14,cursor:"pointer"}}>Tutup</button>
+        </>}
+      </div>
+    </div>
+  </div>;
+}
+
+
 function ReportingModal({events,onClose,kabagNama,cetakOleh}){
   const[mode,setMode]=useState("today");const[from,setFrom]=useState(todayStr());const[to,setTo]=useState(todayStr());const[printMode,setPrintMode]=useState("a4");
   const modeLabel={today:"Hari Ini",tomorrow:"Besok",week:"Minggu Ini",month:"Bulan Ini",range:"Rentang"};
@@ -2449,7 +2595,7 @@ export default function App(){
   const[events,setEvents]=useState([]);const[dbReady,setDbReady]=useState(false);const[dbError,setDbError]=useState("");
   const[tab,setTab]=useState("jadwal");const[form,setForm]=useState(emptyForm);const[editId,setEditId]=useState(null);
   const[toast,setToast]=useState(null);const[confirmDlg,setConfirmDlg]=useState(null);const[showOnboarding,setShowOnboarding]=useState(false);const[filterDate,setFDate]=useState("");const[filterFrom,setFilterFrom]=useState("");const[filterTo,setFilterTo]=useState("");const[showRangeFilter,setShowRangeFilter]=useState(false);
-  const[showAI,setShowAI]=useState(false);const[showReport,setShowReport]=useState(false);const[showSummary,setShowSummary]=useState(false);const[showAdmin,setShowAdmin]=useState(false);const[showProfile,setShowProfile]=useState(false);const[showLaporan,setShowLaporan]=useState(false);
+  const[showAI,setShowAI]=useState(false);const[showReport,setShowReport]=useState(false);const[showSummary,setShowSummary]=useState(false);const[showAdmin,setShowAdmin]=useState(false);const[showProfile,setShowProfile]=useState(false);const[showLaporan,setShowLaporan]=useState(false);const[showBroadcast,setShowBroadcast]=useState(false);
   const[showForgot,setShowForgot]=useState(false);const[showRegister,setShowRegister]=useState(false);const[pendingRegs,setPendingRegs]=useState(()=>loadPendingRegs());
   const[loginLoading,setLoginLoading]=useState(false);const[loginPhase,setLoginPhase]=useState("");
   const[delegTarget,setDelegTarget]= useState(null);const[expandedId,setExp]=useState(null);const[rejectTexts,setRT]=useState({});const[catatanInput,setCatatanInput]=useState({});const[penugasanEv,setPenugasanEv]=useState(null);const[notifPenugasan,setNotifPenugasan]=useState([]);const[evaluasiEv,setEvaluasiEv]=useState(null);const[showMobMenu,setMobMenu]=useState(false);const[showNotifCenter,setShowNotifCenter]=useState(false);
@@ -3076,11 +3222,12 @@ const TH={
     {label:"AKUN",items:[
       {key:"action:profile",icon:"👤",label:"Pengaturan Akun"},
       ...(role==="kabag"?[{key:"action:admin",icon:"⚙️",label:"Kelola Pengguna"}]:[]),
+      ...(role==="kabag"?[{key:"action:broadcast",icon:"📢",label:"Kirim Pengumuman"}]:[]),
     ]},
   ];
 
   const handleNavClick=key=>{
-    if(key==="action:summary"){setShowSummary(true);return;}if(key==="action:report"){setShowReport(true);return;}if(key==="action:laporan"){setShowLaporan(true);return;}if(key==="action:admin"){setShowAdmin(true);return;}if(key==="action:profile"){setShowProfile(true);return;}
+    if(key==="action:summary"){setShowSummary(true);return;}if(key==="action:report"){setShowReport(true);return;}if(key==="action:laporan"){setShowLaporan(true);return;}if(key==="action:admin"){setShowAdmin(true);return;}if(key==="action:broadcast"){setShowBroadcast(true);return;}if(key==="action:profile"){setShowProfile(true);return;}
     setTab(key);if(key==="form"){setForm(emptyForm);setEditId(null);}
   };
 
@@ -3180,6 +3327,7 @@ const TH={
             ...((KASUBBAG_ROLES.includes(role)||role==="kabag")?[{icon:"📈",label:"Rekap Evaluasi",action:()=>{setTab("penugasan");setMobMenu(false);}}]:[]),
             {icon:"👤",label:"Profil",action:()=>{setShowProfile(true);setMobMenu(false);}},
             ...(role==="kabag"?[{icon:"⚙️",label:"Kelola User"+(loadPendingRegs().length>0?" ("+loadPendingRegs().length+")":""),action:()=>{setShowAdmin(true);setMobMenu(false);}}]:[]),
+            ...(role==="kabag"?[{icon:"📢",label:"Kirim Pengumuman",action:()=>{setShowBroadcast(true);setMobMenu(false);}}]:[]),
           ].map((btn,i)=>(
             <button key={i} onClick={btn.action} className="btn-ios" style={{padding:"14px 12px",borderRadius:14,border:"1.5px solid #E4EAF2",background:"#F8FAFF",color:NAVY,cursor:"pointer",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
               <span style={{fontSize:20}}>{btn.icon}</span>{btn.label}
@@ -5658,6 +5806,8 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
     }} onClose={()=>setShowAI(false)}/>}
     {showSummary&&<SummaryModal events={events} onToggleHide={id=>upd(id,{tersembunyi:!events.find(e=>e.id===id)?.tersembunyi})} onClose={()=>setShowSummary(false)}/>}
     {showAdmin&&<AdminModal onClose={()=>setShowAdmin(false)} showT={showT}/>}
+    {showBroadcast&&<BroadcastModal onClose={()=>setShowBroadcast(false)} showT={showT} senderNama={user?.nama||"Kabag Protokol dan Komunikasi Pimpinan"}/>}
+    {showReport&&<ReportingModal events={events} kabagNama={kabagNama} cetakOleh={user?.nama||user?.username||""} onClose={()=>setShowReport(false)}/>}
     {showProfile&&<ProfileModal user={user} onClose={updated=>{setShowProfile(false);if(updated)setUser(updated);}} showT={showT}/>}
     {showLaporan&&<LaporanModal events={events} kabagNama={kabagNama} cetakOleh={user?.nama||user?.username||""} onClose={()=>setShowLaporan(false)}/>}
     {delegTarget&&<DelegateModal label={delegTarget.side==="wk"?"Wali Kota":"Wakil Wali Kota"} onConfirm={name=>{if(delegTarget.side==="wk")upd(delegTarget.id,{statusWK:"diwakilkan",perwakilanWK:name,delegasiKeWWK:false});else upd(delegTarget.id,{statusWWK:"diwakilkan",perwakilanWWK:name});setDelegTarget(null);showT("Diwakilkan ke "+name);}} onCancel={()=>setDelegTarget(null)}/>}
