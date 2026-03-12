@@ -1592,8 +1592,8 @@ function DraftProgressView({events,user,upd,showT,askConfirm,setTab,isMobile}){
         {isDisetujui&&<div style={{background:"#f0fdf4",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#16a34a",fontWeight:700,marginBottom:10}}>✅ Disetujui & Tayang</div>}
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           {(isDraft||isDitolak)&&<button onClick={()=>{if(typeof onEditDraft==="function")onEditDraft(ev);else setTab("input");}} style={{padding:"7px 14px",borderRadius:8,border:"1.5px solid "+NAVY,background:"white",color:NAVY,cursor:"pointer",fontSize:12,fontWeight:600}}>✏️ Edit</button>}
-          {isDraft&&<button onClick={()=>{upd(ev.id,{alur:"menunggu_kasubbag"});showT("Dikirim ke Kasubbag","ok");loadUsers().filter(u=>(u.role==="kasubbag_protokol"||u.role==="kasubbag_komdokpim")&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"submit",submittedBy:user?.nama}));sendPush({targetRole:"kasubbag_protokol",title:"📋 Jadwal Baru Masuk",body:ev.namaAcara+" — "+ev.jam+" WITA",url:"/",tag:"submit-"+ev.id});sendPush({targetRole:"kasubbag_komdokpim",title:"📋 Jadwal Baru Masuk",body:ev.namaAcara+" — "+ev.jam+" WITA",url:"/",tag:"submit-"+ev.id});}} style={{padding:"7px 14px",borderRadius:8,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>Kirim ke Kasubbag →</button>}
-          {isDitolak&&<button onClick={()=>{upd(ev.id,{alur:"menunggu_kasubbag",catatanTolak:""});showT("Dikirim ulang ke Kasubbag","ok");loadUsers().filter(u=>(u.role==="kasubbag_protokol"||u.role==="kasubbag_komdokpim")&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"submit",submittedBy:user?.nama}));sendPush({targetRole:"kasubbag_protokol",title:"📋 Jadwal Dikirim Ulang",body:ev.namaAcara,url:"/",tag:"resubmit-"+ev.id});sendPush({targetRole:"kasubbag_komdokpim",title:"📋 Jadwal Dikirim Ulang",body:ev.namaAcara,url:"/",tag:"resubmit-"+ev.id});}} style={{padding:"7px 14px",borderRadius:8,border:"none",background:"#d97706",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>Kirim Ulang →</button>}
+          {isDraft&&<button onClick={()=>{upd(ev.id,{alur:"menunggu_kasubbag"});showT("Dikirim ke Kasubbag","ok");loadUsers().filter(u=>(u.role==="kasubbag_protokol")&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"submit",submittedBy:user?.nama}));sendPush({targetRole:"kasubbag_protokol",title:"📋 Jadwal Baru Masuk",body:ev.namaAcara+" — "+ev.jam+" WITA",url:"/",tag:"submit-"+ev.id});sendPush({targetRole:"kasubbag_komdokpim",title:"📋 Jadwal Baru Masuk",body:ev.namaAcara+" — "+ev.jam+" WITA",url:"/",tag:"submit-"+ev.id});}} style={{padding:"7px 14px",borderRadius:8,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>Kirim ke Kasubbag →</button>}
+          {isDitolak&&<button onClick={()=>{upd(ev.id,{alur:"menunggu_kasubbag",catatanTolak:""});showT("Dikirim ulang ke Kasubbag","ok");loadUsers().filter(u=>(u.role==="kasubbag_protokol")&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"submit",submittedBy:user?.nama}));sendPush({targetRole:"kasubbag_protokol",title:"📋 Jadwal Dikirim Ulang",body:ev.namaAcara,url:"/",tag:"resubmit-"+ev.id});sendPush({targetRole:"kasubbag_komdokpim",title:"📋 Jadwal Dikirim Ulang",body:ev.namaAcara,url:"/",tag:"resubmit-"+ev.id});}} style={{padding:"7px 14px",borderRadius:8,border:"none",background:"#d97706",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>Kirim Ulang →</button>}
         </div>
       </div>;
     })}
@@ -2934,7 +2934,21 @@ export default function App(){
       if(u){
         await sendPush({targetRole:u.role,title:"📋 Anda Ditugaskan",body:ev?.namaAcara+" · "+ev?.tanggal+" "+ev?.jam+" WITA"+(catatanPenugasan?" · "+catatanPenugasan:""),url:"/",tag:"penugasan-"+evId+"-"+un});
         // WA langsung ke personil (selalu, bukan hanya darurat)
-        if(u.noWA) sendWA({to:u.noWA,namaAcara:ev?.namaAcara,tanggal:ev?.tanggal,jam:ev?.jam,penyelenggara:ev?.penyelenggara,lokasi:ev?.lokasi,event:"penugasan",namaPersonil:u.nama,catatanPenugasan:catatanPenugasan||""});
+        if(u.noWA){
+          // Kirim WA penugasan langsung hanya jika:
+          // - Event BUKAN besok (jadwal hari ini/lusa → langsung), ATAU
+          // - Event besok tapi sudah lewat 16:10 WITA (batch sudah jalan)
+          const _nowWITA=new Date(Date.now()+8*60*60*1000);
+          const _h=_nowWITA.getUTCHours(),_m=_nowWITA.getUTCMinutes();
+          const _totalMin=_h*60+_m;
+          const _tmrw=new Date(Date.now()+8*60*60*1000+24*60*60*1000).toISOString().slice(0,10);
+          const _isBatchWindow=_totalMin>=7*60+25&&_totalMin<16*60+10;
+          const _skipWA=ev?.tanggal===_tmrw&&_isBatchWindow;
+          if(!_skipWA){
+            const _rekan=(ev?.personil||[]).filter(x=>x!==un).map(x=>{const _xu=loadUsers().find(lu=>lu.username===x);return _xu?.nama||x;});
+            sendWA({to:u.noWA,namaAcara:ev?.namaAcara,tanggal:ev?.tanggal,jam:ev?.jam,penyelenggara:ev?.penyelenggara,lokasi:ev?.lokasi,event:"penugasan",namaPersonil:u.nama,catatanPenugasan:catatanPenugasan||"",rekanBertugas:_rekan});
+          }
+        }
       }
     }
     // ── WA darurat ke staf jika acara < 6 jam lagi ──────────────────────
@@ -3040,7 +3054,7 @@ export default function App(){
       if(evSebelum?.alur==="ditolak"){
         upd(editId,{alur:"menunggu_kasubbag",catatanTolak:"",_requiresEdit:false});
         showT("Jadwal diperbaiki & dikirim ulang ke Kasubbag","ok");
-        loadUsers().filter(u=>(u.role==="kasubbag_protokol"||u.role==="kasubbag_komdokpim")&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:form.namaAcara,tanggal:form.tanggal,jam:form.jam,penyelenggara:form.penyelenggara,lokasi:form.lokasi,event:"submit",submittedBy:user?.nama}));
+        loadUsers().filter(u=>(u.role==="kasubbag_protokol")&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:form.namaAcara,tanggal:form.tanggal,jam:form.jam,penyelenggara:form.penyelenggara,lokasi:form.lokasi,event:"submit",submittedBy:user?.nama}));
         sendPush({targetRole:"kasubbag_protokol",title:"📋 Jadwal Dikirim Ulang",body:form.namaAcara,url:"/",tag:"resubmit-"+editId});sendPush({targetRole:"kasubbag_komdokpim",title:"📋 Jadwal Dikirim Ulang",body:form.namaAcara,url:"/",tag:"resubmit-"+editId});
       } else {
         showT("Jadwal diperbarui");
@@ -3064,7 +3078,7 @@ export default function App(){
           const ajudan=allU.filter(u=>u.role===tRole&&u.noWA);
           const labelPim=tRole==="ajudan_walikota"?"Wali Kota":"Wakil Wali Kota";
           for(const aj of ajudan){
-            await sendWA({to:aj.noWA,namaAcara:form.namaAcara,tanggal:form.tanggal,jam:form.jam,penyelenggara:form.penyelenggara,lokasi:form.lokasi,event:"undangan_sore",labelPimpinan:labelPim});
+            // undangan_sore: diganti dengan cron notif-ajudan (16:00 WITA)
           }
           await sendPush({targetRole:tRole,title:"🔔 Undangan Baru Masuk",body:form.namaAcara+" · "+form.tanggal+" "+form.jam+" WITA — Mohon konfirmasi ke "+labelPim,url:"/",tag:"undangan-sore-"+Date.now()});sendPush({targetRole:"kasubbag_protokol",title:"📋 Undangan Sore Masuk",body:form.namaAcara+" — "+form.tanggal+" "+form.jam+" WITA",url:"/",tag:"undangan-sore-ksbg-"+Date.now()});sendPush({targetRole:"kasubbag_komdokpim",title:"📋 Undangan Sore Masuk",body:form.namaAcara+" — "+form.tanggal+" "+form.jam+" WITA",url:"/",tag:"undangan-sore-ksbg2-"+Date.now()});
         }
@@ -4716,7 +4730,7 @@ function KabagDashboard({events, user, upd, showT, askConfirm, deleteAndSync, is
                     upd(ev.id,{alur:"menunggu_kasubbag",catatanKabag:rejectTexts[ev.id+"_recall"]||"Perlu perbaikan",_kabagRecall:true});
                     showT("Jadwal ditarik & dikembalikan ke Kasubbag","warn");
                     // Notifikasi kasubbag
-                    loadUsers().filter(u=>(u.role==="kasubbag_protokol"||u.role==="kasubbag_komdokpim")&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"recalled"}));
+                    loadUsers().filter(u=>(u.role==="kasubbag_protokol")&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"recalled"}));
                     sendPush({targetRole:"kasubbag_protokol",title:"↩ Jadwal Ditarik Kabag",body:ev.namaAcara+": "+(rejectTexts[ev.id+"_recall"]||"Perlu perbaikan"),url:"/",tag:"recall-"+ev.id});sendPush({targetRole:"kasubbag_komdokpim",title:"↩ Jadwal Ditarik Kabag",body:ev.namaAcara+": "+(rejectTexts[ev.id+"_recall"]||"Perlu perbaikan"),url:"/",tag:"recall-"+ev.id});
                     sendPush({targetRole:"admin_rk",title:"↩ Jadwal Ditarik Kabag",body:ev.namaAcara+" — dikembalikan ke Kasubbag",url:"/",tag:"recall-admin-"+ev.id});{const _subU=loadUsers().find(u=>u.username===ev.submittedBy);if(_subU?.noWA)sendWA({to:_subU.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"recalled",submittedBy:getNamaByUsername(ev.submittedBy)});}
                     setExpanded(null);
@@ -5678,7 +5692,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
         {/* ── DRAFT: Kirim (primary) + Edit (secondary) ── */}
         {ev.alur==="draft"&&<>
           <button onClick={()=>{upd(ev.id,{alur:"menunggu_kasubbag"});showT("Dikirim ke Kasubbag");
-            loadUsers().filter(u=>(u.role==="kasubbag_protokol"||u.role==="kasubbag_komdokpim")&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"submit",submittedBy:user?.nama}));sendPush({targetRole:"kasubbag_protokol",title:"📋 Jadwal Baru Masuk",body:ev.namaAcara+" — "+ev.jam+" WITA",url:"/",tag:"submit-"+ev.id});sendPush({targetRole:"kasubbag_komdokpim",title:"📋 Jadwal Baru Masuk",body:ev.namaAcara+" — "+ev.jam+" WITA",url:"/",tag:"submit-"+ev.id});}}
+            loadUsers().filter(u=>(u.role==="kasubbag_protokol")&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"submit",submittedBy:user?.nama}));sendPush({targetRole:"kasubbag_protokol",title:"📋 Jadwal Baru Masuk",body:ev.namaAcara+" — "+ev.jam+" WITA",url:"/",tag:"submit-"+ev.id});sendPush({targetRole:"kasubbag_komdokpim",title:"📋 Jadwal Baru Masuk",body:ev.namaAcara+" — "+ev.jam+" WITA",url:"/",tag:"submit-"+ev.id});}}
             style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:13,fontWeight:800,boxShadow:"0 4px 12px rgba(10,22,40,0.25)"}}>
             📤 Kirim ke Kasubbag
           </button>
