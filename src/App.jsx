@@ -2850,7 +2850,17 @@ export default function App(){
   const submit=async()=>{
     if(!form.namaAcara||!form.tanggal||!form.jam){showT("Nama acara, tanggal & jam wajib diisi.","error");return;}
     const conflict=hasConflict(events,{...form,id:editId||0,alur:"disetujui"});
-    if(editId!==null){const evSebelum=events.find(e=>e.id===editId);setEvents(p=>{const next=p.map(e=>e.id===editId?{...e,...form}:e);const u=next.find(e=>e.id===editId);if(u)dbUpsert(u).catch(console.error);return next;});showT("Jadwal diperbarui");setEditId(null);
+    if(editId!==null){const evSebelum=events.find(e=>e.id===editId);setEvents(p=>{const next=p.map(e=>e.id===editId?{...e,...form}:e);const u=next.find(e=>e.id===editId);if(u)dbUpsert(u).catch(console.error);return next;});
+      // Jika jadwal sebelumnya ditolak → otomatis kirim ulang ke Kasubbag
+      if(evSebelum?.alur==="ditolak"){
+        upd(editId,{alur:"menunggu_kasubbag",catatanTolak:"",_requiresEdit:false});
+        showT("Jadwal diperbaiki & dikirim ulang ke Kasubbag","ok");
+        loadUsers().filter(u=>u.role==="kasubbag_protokol"&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:form.namaAcara,tanggal:form.tanggal,jam:form.jam,penyelenggara:form.penyelenggara,lokasi:form.lokasi,event:"submit",submittedBy:user?.nama}));
+        sendPush({targetRole:"kasubbag_protokol",title:"📋 Jadwal Dikirim Ulang",body:form.namaAcara,url:"/",tag:"resubmit-"+editId});
+      } else {
+        showT("Jadwal diperbarui");
+      }
+      setEditId(null);
       // Notif WA jika jadwal sudah disetujui (tayang) yang diedit
       if(evSebelum?.alur==="disetujui"){const _allU=loadUsers();const _editor=user?.nama||user?.username||"Admin";// Notif ke ajudan yang relevan
         _allU.filter(u=>(u.role==="ajudan_walikota"||u.role==="ajudan_wakilwalikota")&&u.noWA).forEach(u=>{const _isWK=u.role==="ajudan_walikota"&&(evSebelum.untukPimpinan||[]).includes("walikota");const _isWWK=u.role==="ajudan_wakilwalikota"&&((evSebelum.untukPimpinan||[]).includes("wakilwalikota")||evSebelum.delegasiKeWWK);if(_isWK||_isWWK)sendWA({to:u.noWA,namaAcara:form.namaAcara,tanggal:form.tanggal,jam:form.jam,penyelenggara:form.penyelenggara,lokasi:form.lokasi,event:"jadwal_diubah",namaEditor:_editor});});// Notif ke personil yang ditugaskan
@@ -5486,25 +5496,40 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
         </>}
         {/* ── DITOLAK: wajib edit dulu, baru bisa kirim ulang ── */}
         {ev.alur==="ditolak"&&<>
-          <div style={{background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:10,padding:"12px 14px",display:"flex",gap:10,alignItems:"flex-start"}}>
+          {/* Banner alasan penolakan */}
+          <div style={{background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:10,padding:"12px 14px",display:"flex",gap:10,alignItems:"flex-start",marginBottom:2}}>
             <span style={{fontSize:18,flexShrink:0}}>❌</span>
             <div>
-              <div style={{fontSize:12,fontWeight:800,color:"#991B1B",marginBottom:3}}>Jadwal Dikembalikan</div>
+              <div style={{fontSize:12,fontWeight:800,color:"#991B1B",marginBottom:3}}>Dikembalikan oleh Kabag</div>
               <div style={{fontSize:12,color:"#7F1D1D",lineHeight:1.5}}>{ev.catatanTolak||"Perlu diperbaiki"}</div>
             </div>
           </div>
-          {/* PRIMARY: Edit dulu — wajib jika _requiresEdit */}
-          <button onClick={()=>{setForm({tanggal:ev.tanggal,jam:ev.jam,namaAcara:ev.namaAcara,penyelenggara:ev.penyelenggara,kontak:ev.kontak||"",buktiUndangan:ev.buktiUndangan||"",pakaian:ev.pakaian,jenisKegiatan:ev.jenisKegiatan,catatan:ev.catatan||"",lokasi:ev.lokasi||"",untukPimpinan:ev.untukPimpinan,undanganFile:ev.undanganFile||null,undanganNama:ev.undanganNama||""});setEditId(ev.id);setTab("form");}}
-            style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:ev._requiresEdit?"#D97706":"#64748B",color:"white",cursor:"pointer",fontSize:13,fontWeight:800}}>
-            ✏️ {ev._requiresEdit?"Edit Jadwal (Wajib sebelum kirim ulang)":"Edit Jadwal"}
-          </button>
-          {/* SECONDARY: Kirim Ulang — hanya jika sudah diedit */}
-          {!ev._requiresEdit&&<button onClick={()=>{upd(ev.id,{alur:"menunggu_kasubbag",catatanTolak:"",_requiresEdit:false});showT("Dikirim ulang ke Kasubbag");
-            loadUsers().filter(u=>u.role==="kasubbag_protokol"&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"submit",submittedBy:user?.nama}));sendPush({targetRole:"kasubbag_protokol",title:"📋 Jadwal Dikirim Ulang",body:ev.namaAcara,url:"/",tag:"resubmit-"+ev.id});}}
-            style={{width:"100%",padding:"10px",borderRadius:10,border:"1.5px solid "+NAVY,background:"white",color:NAVY,cursor:"pointer",fontSize:13,fontWeight:700}}>
-            📤 Kirim Ulang ke Kasubbag
-          </button>}
-          {ev._requiresEdit&&<div style={{textAlign:"center",fontSize:11,color:"#94A3B8",fontStyle:"italic"}}>Edit jadwal terlebih dahulu, lalu tombol Kirim Ulang akan muncul</div>}
+          {/* Pilihan tindakan */}
+          <div style={{background:"#FAFAFA",borderRadius:10,border:"1px solid #E2E8F0",overflow:"hidden"}}>
+            <div style={{padding:"10px 14px",fontSize:11,color:"#64748B",fontWeight:600,borderBottom:"1px solid #E2E8F0",background:"white"}}>
+              Pilih tindakan untuk jadwal ini:
+            </div>
+            {/* Opsi 1: Edit & Kirim Ulang */}
+            <button onClick={()=>{setForm({tanggal:ev.tanggal,jam:ev.jam,namaAcara:ev.namaAcara,penyelenggara:ev.penyelenggara,kontak:ev.kontak||"",buktiUndangan:ev.buktiUndangan||"",pakaian:ev.pakaian,jenisKegiatan:ev.jenisKegiatan,catatan:ev.catatan||"",lokasi:ev.lokasi||"",untukPimpinan:ev.untukPimpinan,besertaIstriWK:ev.besertaIstriWK||false,besertaIstriWWK:ev.besertaIstriWWK||false,undanganFile:ev.undanganFile||null,undanganNama:ev.undanganNama||""});setEditId(ev.id);setTab("form");}}
+              style={{width:"100%",padding:"14px",border:"none",borderBottom:"1px solid #E2E8F0",background:"white",cursor:"pointer",display:"flex",alignItems:"center",gap:12,textAlign:"left"}}>
+              <span style={{width:36,height:36,borderRadius:9,background:"#EFF6FF",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>✏️</span>
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:"#1D4ED8"}}>Edit & Kirim Ulang</div>
+                <div style={{fontSize:11,color:"#64748B",marginTop:1}}>Perbaiki jadwal lalu kirim kembali ke Kasubbag</div>
+              </div>
+              <span style={{marginLeft:"auto",fontSize:16,color:"#94A3B8"}}>›</span>
+            </button>
+            {/* Opsi 2: Hapus */}
+            <button onClick={()=>askConfirm("Hapus Jadwal?","Jadwal '"+ev.namaAcara+"' akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.",()=>{deleteAndSync(ev.id);showT("Jadwal dihapus","warn");},"Hapus","#DC2626")}
+              style={{width:"100%",padding:"14px",border:"none",background:"white",cursor:"pointer",display:"flex",alignItems:"center",gap:12,textAlign:"left"}}>
+              <span style={{width:36,height:36,borderRadius:9,background:"#FEF2F2",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>🗑️</span>
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:"#DC2626"}}>Hapus Jadwal</div>
+                <div style={{fontSize:11,color:"#64748B",marginTop:1}}>Hapus permanen, tidak bisa dikembalikan</div>
+              </div>
+              <span style={{marginLeft:"auto",fontSize:16,color:"#94A3B8"}}>›</span>
+            </button>
+          </div>
         </>}
         {/* ── DISETUJUI: Ajukan Pembatalan (destructive, terpisah) ── */}
         {ev.alur==="disetujui"&&!ev.alurHapus&&ev.submittedBy===user?.username&&<>
