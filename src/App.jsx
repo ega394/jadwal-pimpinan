@@ -4389,7 +4389,8 @@ function RejectTextarea({evId,placeholder,rows,style,onCommit}){
 
 // DASHBOARD KABAG — Antrian, Jadwal+Penugasan, Batal Tayang
 // ═══════════════════════════════════════════════════════
-function KabagDashboard({events, user, upd, showT, askConfirm, deleteAndSync, isMobile}){\n  const NAVY="#0A1628",GOLD="#C9A84C",GREEN="#0D6B4F";
+function KabagDashboard({events, user, upd, showT, askConfirm, deleteAndSync, isMobile}){
+  const NAVY="#0A1628",GOLD="#C9A84C",GREEN="#0D6B4F";
   const [activeTab, setActiveTab] = useState("antrian");
   const [expandedId, setExpanded] = useState(null);
   const [rejectTexts, setRT] = useState({});
