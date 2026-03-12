@@ -8,15 +8,78 @@ const REG_KEY="pending_registrations";
 function loadPendingRegs(){try{return JSON.parse(localStorage.getItem(REG_KEY)||"[]");}catch{return[];}}
 function savePendingRegs(regs){localStorage.setItem(REG_KEY,JSON.stringify(regs));}
 
+// ── CaptchaBox: CAPTCHA matematika sederhana, tanpa layanan eksternal ──
+function CaptchaBox({onValid}){
+  const gen=()=>{
+    const ops=["+","-","×"];
+    const op=ops[Math.floor(Math.random()*ops.length)];
+    let a=Math.floor(Math.random()*9)+1, b=Math.floor(Math.random()*9)+1;
+    if(op==="-"&&b>a){const t=a;a=b;b=t;} // pastikan hasil positif
+    const ans=op==="+"?a+b:op==="-"?a-b:a*b;
+    return {soal:`${a} ${op} ${b}`,ans};
+  };
+  const[q,setQ]=React.useState(gen);
+  const[val,setVal]=React.useState("");
+  const[status,setStatus]=React.useState("idle"); // idle|ok|err
+  const NAVY="#0A1628";
+
+  const cek=()=>{
+    if(parseInt(val,10)===q.ans){setStatus("ok");onValid(true);}
+    else{setStatus("err");setVal("");onValid(false);setTimeout(()=>{setQ(gen());setStatus("idle");},900);}
+  };
+
+  return <div style={{marginBottom:16}}>
+    <label style={{display:"block",fontSize:12,fontWeight:700,color:"#475569",marginBottom:6}}>
+      Verifikasi Anti-Bot
+    </label>
+    <div style={{display:"flex",alignItems:"center",gap:8}}>
+      {/* Kotak soal */}
+      <div style={{
+        padding:"10px 16px",borderRadius:10,fontWeight:800,fontSize:16,letterSpacing:2,
+        background:status==="ok"?"#DCFCE7":status==="err"?"#FEE2E2":"#F1F5F9",
+        color:status==="ok"?"#166534":status==="err"?"#991B1B":NAVY,
+        border:"1.5px solid "+(status==="ok"?"#86EFAC":status==="err"?"#FECACA":"#CBD5E1"),
+        minWidth:90,textAlign:"center",fontFamily:"monospace",transition:"all 0.2s",userSelect:"none",
+      }}>
+        {status==="ok"?"✓ OK":status==="err"?"✗":q.soal+" = ?"}
+      </div>
+      {/* Input jawaban */}
+      {status!=="ok"&&<input
+        type="number" value={val} placeholder="Jawaban"
+        onChange={e=>{setVal(e.target.value);setStatus("idle");onValid(false);}}
+        onKeyDown={e=>e.key==="Enter"&&cek()}
+        style={{width:80,padding:"10px 12px",borderRadius:10,border:"1.5px solid "+(status==="err"?"#FECACA":"#e2e8f0"),
+          fontSize:14,textAlign:"center",outline:"none",boxSizing:"border-box"}}
+      />}
+      {status!=="ok"&&<button type="button" onClick={cek}
+        style={{padding:"10px 14px",borderRadius:10,border:"none",background:NAVY,color:"white",
+          cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>
+        Cek ✓
+      </button>}
+      {/* Refresh soal */}
+      {status!=="ok"&&<button type="button" onClick={()=>{setQ(gen());setVal("");setStatus("idle");onValid(false);}}
+        title="Ganti soal" style={{padding:"10px",borderRadius:10,border:"1.5px solid #e2e8f0",
+          background:"white",cursor:"pointer",fontSize:13,color:"#64748B"}}>
+        🔄
+      </button>}
+    </div>
+    {status==="err"&&<div style={{fontSize:11,color:"#DC2626",marginTop:4}}>Jawaban salah, soal diganti otomatis.</div>}
+    {status==="ok"&&<div style={{fontSize:11,color:"#166534",marginTop:4}}>✓ Verifikasi berhasil.</div>}
+  </div>;
+}
+
 function RegisterModal({onClose, onSuccess}){
   const NAVY="#0A1628",GOLD="#C9A84C";
+
   const [form,setForm]=React.useState({nama:"",jabatan:"",noWA:"",username:"",password:"",konfirmasi:"",role:"staf",alasan:""});
   const [err,setErr]=React.useState("");
   const [sent,setSent]=React.useState(false);
+  const [captchaOK,setCaptchaOK]=React.useState(false);
   const ROLE_OPTS=[{v:"staf",l:"Staf Protokol"},{v:"admin_rk",l:"Admin Rencana Kegiatan (Input Jadwal)"},{v:"timkom",l:"Staf Komunikasi & Dokumentasi"},{v:"ajudan_walikota",l:"Ajudan Wali Kota"},{v:"ajudan_wakilwalikota",l:"Ajudan Wakil Wali Kota"}];
   const inp={width:"100%",padding:"10px 13px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:14,outline:"none",background:"white",boxSizing:"border-box"};
   const submit=async()=>{
     setErr("");
+    if(!captchaOK)return setErr("Selesaikan verifikasi anti-bot terlebih dahulu.");
     if(!form.nama||!form.username||!form.password||!form.jabatan)return setErr("Nama, jabatan, username & password wajib diisi.");
     if(form.password!==form.konfirmasi)return setErr("Konfirmasi password tidak cocok.");
     if(form.password.length<6)return setErr("Password minimal 6 karakter.");
@@ -79,6 +142,7 @@ function RegisterModal({onClose, onSuccess}){
             <label style={{display:"block",fontSize:12,fontWeight:700,color:"#475569",marginBottom:4}}>Alasan Mendaftar (opsional)</label>
             <textarea value={form.alasan} onChange={e=>setForm(p=>({...p,alasan:e.target.value}))} rows={2} placeholder="Contoh: Staf baru Kasubbag Protokol..." style={{...inp,resize:"none"}}/>
           </div>
+          <CaptchaBox onValid={ok=>setCaptchaOK(ok)}/>
           <div style={{display:"flex",gap:8}}>
             <button onClick={onClose} style={{flex:1,padding:"12px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"white",color:"#64748B",cursor:"pointer",fontWeight:600,fontSize:13}}>Batal</button>
             <button onClick={submit} style={{flex:2,padding:"12px",borderRadius:10,border:"none",background:"linear-gradient(135deg,"+NAVY+",#1B4080)",color:"white",cursor:"pointer",fontWeight:800,fontSize:14}}>Kirim Permohonan</button>
@@ -2398,13 +2462,16 @@ function ForgotPasswordModal({onClose}){
   const[nama,setNama]=useState("");
   const[loading,setLoading]=useState(false);
   const[err,setErr]=useState("");
+  const[captchaOK,setCaptchaOK]=useState(false);
   const inp={width:"100%",padding:"12px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:14,background:"#f8fafc",color:"#1e293b",boxSizing:"border-box",outline:"none"};
 
   const[channel,setChannel]=useState("wa");
   const[screenCode,setScreenCode]=useState("");
 
   const requestOTP=async()=>{
-    setErr("");if(!un.trim())return setErr("Masukkan username terlebih dahulu.");
+    setErr("");
+    if(!captchaOK)return setErr("Selesaikan verifikasi anti-bot terlebih dahulu.");
+    if(!un.trim())return setErr("Masukkan username terlebih dahulu.");
     setLoading(true);
     try{
       const r=await fetch("/api/otp",{method:"POST",headers:{"Content-Type":"application/json"},
@@ -2461,6 +2528,7 @@ function ForgotPasswordModal({onClose}){
           <div style={{background:"#f0f9ff",borderRadius:9,padding:"10px 13px",marginBottom:16,fontSize:12,color:"#0284c7",border:"1px solid #bae6fd"}}>
             📱 Kode reset akan dikirim ke nomor WhatsApp yang terdaftar pada akun Anda.
           </div>
+          <CaptchaBox onValid={ok=>setCaptchaOK(ok)}/>
           <button onClick={requestOTP} disabled={loading} style={{width:"100%",padding:"13px",borderRadius:11,border:"none",background:loading?"#e2e8f0":"linear-gradient(135deg,#0A1628,#1B4080)",color:loading?"#94a3b8":"white",cursor:loading?"default":"pointer",fontSize:14,fontWeight:700}}>
             {loading?"Mengirim...":"Kirim Kode OTP via WhatsApp"}
           </button>
