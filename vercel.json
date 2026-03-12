@@ -1,19 +1,19 @@
 {
   "crons": [
     {
-      "path": "/api/notif-pagi",
+      "path": "/api/notif-cron?type=pagi",
       "schedule": "30 23 * * *"
     },
     {
-      "path": "/api/notif-reminder",
+      "path": "/api/notif-cron?type=reminder",
       "schedule": "55 7 * * *"
     },
     {
-      "path": "/api/notif-ajudan",
+      "path": "/api/notif-cron?type=ajudan",
       "schedule": "0 8 * * *"
     },
     {
-      "path": "/api/notif-personil",
+      "path": "/api/notif-cron?type=personil",
       "schedule": "10 8 * * *"
     }
   ]
