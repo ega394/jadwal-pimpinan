@@ -691,7 +691,7 @@ function AIModal({onFill,onClose}){
     }
     setLoading(false);
   };
-  const handleFile=f=>{if(!f)return;if(!f.type.match(/pdf|image/)){setErr("Gunakan PDF atau gambar.");return;}analyze(f);};
+  const handleFile=f=>{if(!f)return;if(!f.type.match(/pdf|image/)){setErr("Gunakan PDF atau gambar.");return;}setUndanganFile(f);setUndanganNama(f.name);analyze(f);};
   const inp={width:"100%",padding:"9px 11px",borderRadius:8,border:"1.5px solid #e2e8f0",fontSize:14,background:"white",color:"#1e293b"};
   return <div style={{position:"fixed",inset:0,zIndex:8100,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
     <div style={{background:"white",borderRadius:16,width:"100%",maxWidth:520,maxHeight:"90vh",display:"flex",flexDirection:"column"}}>
@@ -720,9 +720,20 @@ function AIModal({onFill,onClose}){
           {[{k:"namaAcara",l:"Nama Acara *"},{k:"tanggal",l:"Tanggal *",t:"date"},{k:"jam",l:"Jam *",t:"time"},{k:"penyelenggara",l:"Penyelenggara *"},{k:"kontak",l:"Kontak *"},{k:"buktiUndangan",l:"No. Surat *"},{k:"lokasi",l:"Lokasi *"},{k:"catatan",l:"Catatan"}].map(f=><div key={f.k} style={{marginBottom:9}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:3}}>{f.l}</label><input type={f.t||"text"} value={edited[f.k]||""} onChange={e=>setEdited(p=>({...p,[f.k]:e.target.value}))} style={inp}/></div>)}
           <div style={{marginBottom:9}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:3}}>Pakaian *</label><select value={edited.pakaian||"PDH"} onChange={e=>setEdited(p=>({...p,pakaian:e.target.value}))} style={{...inp,WebkitAppearance:"none"}}>{PAKAIAN.map(x=><option key={x}>{x}</option>)}</select></div>
           <div style={{marginBottom:9}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:3}}>Jenis Kegiatan *</label><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{JENIS.map(j=><button key={j} type="button" onClick={()=>setEdited(p=>({...p,jenisKegiatan:j}))} style={{padding:"6px 12px",borderRadius:8,border:"1.5px solid "+(edited.jenisKegiatan===j?NAVY:"#e2e8f0"),background:edited.jenisKegiatan===j?NAVY:"white",color:edited.jenisKegiatan===j?"white":"#64748b",cursor:"pointer",fontSize:12,fontWeight:700}}>{j}</button>)}</div></div>
-          <div style={{marginBottom:9}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:3}}>Upload Berkas Undangan *</label>
+          <div style={{marginBottom:9}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:3}}>Berkas Undangan</label>
             <input ref={undanganRef} type="file" accept="application/pdf,image/*" onChange={e=>{const f=e.target.files[0];if(f){setUndanganFile(f);setUndanganNama(f.name);}e.target.value="";}} style={{display:"none"}}/>
-            {undanganFile?<div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"#f0fdf4",borderRadius:8,border:"1.5px solid #86efac"}}><span style={{fontSize:11,color:"#15803d",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>✓ {undanganNama}</span><button type="button" onClick={()=>{setUndanganFile(null);setUndanganNama("");}} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:13,fontWeight:700}}>✕</button></div>:<button type="button" onClick={()=>undanganRef.current.click()} style={{width:"100%",padding:"9px",borderRadius:8,border:"2px dashed #c7d2fe",background:"#f8faff",color:NAVY,cursor:"pointer",fontSize:12,fontWeight:600}}>📎 Klik untuk upload berkas undangan</button>}
+            {undanganFile
+              ?<div style={{borderRadius:9,overflow:"hidden",border:"1.5px solid #86efac"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"#f0fdf4"}}>
+                    <span style={{fontSize:13}}>✅</span>
+                    <span style={{fontSize:11,color:"#15803d",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:600}}>{undanganNama}</span>
+                    <button type="button" onClick={()=>{setUndanganFile(null);setUndanganNama("");}} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:13,fontWeight:700}}>✕</button>
+                  </div>
+                  <div style={{display:"flex",gap:0}}>
+                    <button type="button" onClick={()=>undanganRef.current.click()} style={{flex:1,padding:"6px 8px",border:"none",borderTop:"1px solid #bbf7d0",background:"#f8fffe",color:"#15803d",cursor:"pointer",fontSize:11,fontWeight:600}}>🔄 Ganti File</button>
+                  </div>
+                </div>
+              :<button type="button" onClick={()=>undanganRef.current.click()} style={{width:"100%",padding:"9px",borderRadius:8,border:"2px dashed #c7d2fe",background:"#f8faff",color:NAVY,cursor:"pointer",fontSize:12,fontWeight:600}}>📎 Klik untuk upload berkas undangan</button>}
           </div>
           {validErr&&<div style={{padding:"8px 12px",background:"#fee2e2",borderRadius:8,fontSize:12,color:"#991b1b",marginBottom:8}}>{validErr}</div>}
           <div style={{display:"flex",gap:8,marginTop:16}}>
@@ -730,7 +741,6 @@ function AIModal({onFill,onClose}){
             <button onClick={()=>{
               const missing=REQUIRED_FIELDS.filter(k=>!edited[k]||!String(edited[k]).trim());
               if(missing.length>0){setValidErr("Wajib diisi: "+missing.map(k=>({namaAcara:"Nama Acara",tanggal:"Tanggal",jam:"Jam",penyelenggara:"Penyelenggara",kontak:"Kontak",buktiUndangan:"No. Surat",pakaian:"Pakaian",jenisKegiatan:"Jenis Kegiatan",lokasi:"Lokasi"})[k]).join(", "));return;}
-              if(!undanganFile){setValidErr("Berkas undangan wajib diupload.");return;}
               setValidErr("");
               onFill({...edited,_undanganFile:undanganFile,_undanganNama:undanganNama});
             }} style={{flex:2,padding:"11px",borderRadius:9,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Gunakan Data Ini</button>
@@ -1615,7 +1625,7 @@ function AdminModal({onClose,showT}){
 
 
 // ==================== FORM UNDANGAN UPLOAD (inline, for FormView) ====================
-function FormUndanganUpload({onFile}){
+function FormUndanganUpload({onFile,compact,label}){
   const ref=useRef();
   const[load,setLoad]=useState(false);
   const handle=f=>{
@@ -1628,6 +1638,18 @@ function FormUndanganUpload({onFile}){
     reader.onerror=()=>setLoad(false);
     reader.readAsDataURL(f);
   };
+  if(compact){
+    return <div style={{flex:1}}>
+      <input ref={ref} type="file" accept="application/pdf,image/*"
+        onChange={e=>{handle(e.target.files[0]);e.target.value="";}}
+        style={{display:"none"}}/>
+      <button type="button" onClick={()=>ref.current.click()} disabled={load}
+        style={{width:"100%",padding:"7px",borderRadius:8,border:"1.5px solid #0284c7",
+          background:"white",color:"#0284c7",cursor:load?"default":"pointer",fontSize:12,fontWeight:700}}>
+        {load?"Memuat...":(label||"📎 Upload")}
+      </button>
+    </div>;
+  }
   return(
     <div style={{background:"#f8fafc",borderRadius:10,padding:11,border:"1.5px dashed #7dd3fc"}}>
       <input ref={ref} type="file" accept="application/pdf,image/*"
@@ -2112,17 +2134,26 @@ function FormView({form,setForm,editId,isMobile,onSubmit,onCancel,onOpenAI,onUnd
             Berkas Undangan <span style={{color:"#94a3b8",fontWeight:400}}>(Opsional)</span>
           </label>
           {form.undanganFile
-            ?<div style={{background:"#f0f9ff",borderRadius:10,padding:11,border:"1.5px solid #bae6fd"}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,background:"white",borderRadius:8,padding:"8px 10px",border:"1px solid #bae6fd",marginBottom:7}}>
-                <span style={{fontSize:15,flexShrink:0}}>{form.undanganNama&&form.undanganNama.match(/\.(jpg|jpeg|png)$/i)?"IMG":"PDF"}</span>
-                <div style={{flex:1,minWidth:0,fontSize:12,fontWeight:600,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{form.undanganNama||"Berkas Undangan"}</div>
+            ?<div style={{background:"#f0fdf4",borderRadius:10,padding:11,border:"1.5px solid #86efac"}}>
+              {form._undanganFromAI&&<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8,padding:"5px 8px",background:"linear-gradient(90deg,#ede9fe,#ddd6fe)",borderRadius:7,fontSize:11,fontWeight:700,color:"#5b21b6"}}>
+                <span>🤖</span> Berkas ini otomatis tersimpan dari AI Auto-Isi
+              </div>}
+              <div style={{display:"flex",alignItems:"center",gap:8,background:"white",borderRadius:8,padding:"8px 10px",border:"1px solid #bbf7d0",marginBottom:7}}>
+                <span style={{fontSize:18,flexShrink:0}}>{form.undanganNama?.match(/\.(jpg|jpeg|png|webp)$/i)?"🖼️":"📄"}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:700,color:"#15803d",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{form.undanganNama||"Berkas Undangan"}</div>
+                  <div style={{fontSize:10,color:"#64748b",marginTop:1}}>✓ Siap diunggah bersama jadwal</div>
+                </div>
               </div>
-              <button type="button" onClick={()=>setForm(p=>({...p,undanganFile:null,undanganNama:""}))}
-                style={{width:"100%",padding:"7px",borderRadius:8,border:"1.5px solid #fca5a5",background:"white",color:"#ef4444",cursor:"pointer",fontSize:12,fontWeight:700}}>
-                Hapus Berkas
-              </button>
+              <div style={{display:"flex",gap:6}}>
+                <FormUndanganUpload label="🔄 Ganti File" compact onFile={(file,name,b64)=>{setForm(p=>({...p,undanganFile:b64,undanganNama:name,_undanganFromAI:false}));}}/>
+                <button type="button" onClick={()=>setForm(p=>({...p,undanganFile:null,undanganNama:"",_undanganFromAI:false}))}
+                  style={{flex:1,padding:"7px",borderRadius:8,border:"1.5px solid #fca5a5",background:"white",color:"#ef4444",cursor:"pointer",fontSize:12,fontWeight:700}}>
+                  Hapus Berkas
+                </button>
+              </div>
             </div>
-            :<FormUndanganUpload onFile={(file,name,b64)=>{setForm(p=>({...p,undanganFile:b64,undanganNama:name}));}}/>
+            :<FormUndanganUpload onFile={(file,name,b64)=>{setForm(p=>({...p,undanganFile:b64,undanganNama:name,_undanganFromAI:false}));}}/>
           }
         </div>}
         <div style={{display:"flex",gap:10}}>
@@ -5606,16 +5637,19 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
       const{_undanganFile,_undanganNama,...formData}=d;
       setForm(p=>({...p,...formData}));
       if(_undanganFile){
-        try{
-          let url,nama=_undanganNama;
-          if(SUPA_OK){url=await storageUpload("undangan",_undanganFile,_undanganFile.name);} 
-          else{url=await new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsDataURL(_undanganFile);});}
-          setForm(p=>({...p,undanganFile:url,undanganNama:nama}));
-        }catch(e){showT("Gagal upload undangan: "+e.message,"error");}
+        // Simpan sebagai base64 dulu — langsung tampil di form tanpa tunggu upload
+        const nama=_undanganNama||_undanganFile.name;
+        const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsDataURL(_undanganFile);});
+        setForm(p=>({...p,undanganFile:b64,undanganNama:nama,_undanganFromAI:true}));
+        // Upload ke Supabase storage di background — ganti base64 dengan URL bila berhasil
+        if(SUPA_OK){
+          storageUpload("undangan","ai-"+Date.now(),_undanganFile)
+            .then(url=>{if(url)setForm(p=>({...p,undanganFile:url,undanganNama:nama}));})
+            .catch(()=>{});
+        }
       }
-      setShowAI(false);setTab("form");showT("Form terisi dari AI. Periksa sebelum menyimpan.","warn");
+      setShowAI(false);setTab("form");showT("Form terisi dari AI ✓ — berkas undangan otomatis tersimpan","warn");
     }} onClose={()=>setShowAI(false)}/>}
-    {showReport&&<ReportingModal events={events} kabagNama={kabagNama} cetakOleh={user?.nama||user?.username||""} onClose={()=>setShowReport(false)}/>}
     {showSummary&&<SummaryModal events={events} onToggleHide={id=>upd(id,{tersembunyi:!events.find(e=>e.id===id)?.tersembunyi})} onClose={()=>setShowSummary(false)}/>}
     {showAdmin&&<AdminModal onClose={()=>setShowAdmin(false)} showT={showT}/>}
     {showProfile&&<ProfileModal user={user} onClose={updated=>{setShowProfile(false);if(updated)setUser(updated);}} showT={showT}/>}
