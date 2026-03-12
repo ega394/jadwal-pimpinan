@@ -500,10 +500,10 @@ function UndanganBlock({ev,canEdit,onUpload,onRemove}){
 }
 
 // ==================== SAMBUTAN BLOCK (DOCX→PDF) ====================
-function SambutanBlock({ev,canUpload,onUploadDocx,onRemove}){
-  const NAVY="#0A1628",GREEN="#0D6B4F",GOLD="#C9A84C";
+function SambutanBlock({ev,canUpload,onUploadDocx,onUploadPdf,onRemove}){
+  const NAVY_="#0A1628",GREEN_="#0D6B4F",GOLD_="#C9A84C";
   const ref=useRef();
-  const[step,setStep]=React.useState("idle"); // idle|processing|done|error
+  const[step,setStep]=React.useState("idle");
   const[progress,setProgress]=React.useState("");
   const[pdfPreview,setPdfPreview]=React.useState(null);
   const[errMsg,setErrMsg]=React.useState("");
@@ -511,41 +511,43 @@ function SambutanBlock({ev,canUpload,onUploadDocx,onRemove}){
   const[drag,setDrag]=React.useState(false);
 
   const DOCX_MIME="application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  const PDF_MIME="application/pdf";
 
   const handleFile=async(f)=>{
     if(!f)return;
     const isDocx=f.type===DOCX_MIME||f.name.toLowerCase().endsWith(".docx");
-    if(!isDocx){alert("Hanya file .docx yang diterima untuk naskah sambutan.");return;}
-    if(f.size>5*1024*1024){alert("Ukuran file maks 5MB.");return;}
+    const isPdf=f.type===PDF_MIME||f.name.toLowerCase().endsWith(".pdf");
+    if(!isDocx&&!isPdf){alert("Format tidak didukung. Gunakan file .docx atau .pdf.");return;}
+    if(f.size>10*1024*1024){alert("Ukuran file maks 10MB.");return;}
+    if(isPdf){
+      setStep("processing");setErrMsg("");setProgress("Mengupload PDF...");
+      try{await onUploadPdf(f,f.name);setStep("done");setProgress("");}
+      catch(e){setStep("error");setErrMsg(e.message||"Gagal upload PDF");}
+      return;
+    }
+    if(f.size>5*1024*1024){alert("Ukuran file DOCX maks 5MB.");return;}
     setStep("processing");setErrMsg("");
     try{
-      setProgress("Membaca dokumen DOCX...");
-      await new Promise(r=>setTimeout(r,300));
-      setProgress("Mengolah isi naskah...");
-      await new Promise(r=>setTimeout(r,400));
+      setProgress("Membaca dokumen DOCX...");await new Promise(r=>setTimeout(r,300));
+      setProgress("Mengolah isi naskah...");await new Promise(r=>setTimeout(r,400));
       setProgress("Membuat PDF resmi...");
       const result=await onUploadDocx(f);
-      if(result?.pdfBase64){
-        setPdfPreview("data:application/pdf;base64,"+result.pdfBase64);
-      }
+      if(result?.pdfBase64)setPdfPreview("data:application/pdf;base64,"+result.pdfBase64);
       setStep("done");setProgress("");
-    }catch(e){
-      setStep("error");setErrMsg(e.message||"Gagal memproses file");
-    }
+    }catch(e){setStep("error");setErrMsg(e.message||"Gagal memproses file");}
   };
 
   const handleDrop=e=>{e.preventDefault();setDrag(false);handleFile(e.dataTransfer.files[0]);};
 
-  // ── Tampilan setelah ada PDF ──
   if(ev.sambutanFile){
     const previewUrl=pdfPreview||ev.sambutanFile;
+    const isPdfDirect=!ev.sambutanDocxNama;
     return <>
-      {/* Preview modal */}
       {viewPdf&&<div style={{position:"fixed",inset:0,zIndex:8500,background:"rgba(0,0,0,0.92)",display:"flex",flexDirection:"column"}}>
-        <div style={{background:NAVY,padding:"11px 16px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-          <span style={{color:"white",fontWeight:700,fontSize:13,flex:1}}>📄 {ev.sambutanNama}</span>
-          {ev.sambutanDocx&&<a href={ev.sambutanDocx} download={ev.sambutanDocxNama||"naskah.docx"} style={{padding:"6px 12px",borderRadius:7,background:GOLD,color:NAVY,textDecoration:"none",fontSize:11,fontWeight:700}}>⬇ DOCX Asli</a>}
-          <a href={ev.sambutanFile} download={ev.sambutanNama} style={{padding:"6px 12px",borderRadius:7,background:"white",color:NAVY,textDecoration:"none",fontSize:11,fontWeight:700}}>⬇ PDF</a>
+        <div style={{background:NAVY_,padding:"11px 16px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+          <span style={{color:"white",fontWeight:700,fontSize:13,flex:1}}>{"📄 "+ev.sambutanNama}</span>
+          {ev.sambutanDocx&&<a href={ev.sambutanDocx} download={ev.sambutanDocxNama||"naskah.docx"} style={{padding:"6px 12px",borderRadius:7,background:GOLD_,color:NAVY_,textDecoration:"none",fontSize:11,fontWeight:700}}>⬇ DOCX Asli</a>}
+          <a href={ev.sambutanFile} download={ev.sambutanNama} style={{padding:"6px 12px",borderRadius:7,background:"white",color:NAVY_,textDecoration:"none",fontSize:11,fontWeight:700}}>⬇ PDF</a>
           <button onClick={()=>setViewPdf(false)} style={{padding:"6px 12px",borderRadius:7,background:"rgba(255,255,255,0.15)",border:"none",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>✕ Tutup</button>
         </div>
         <div style={{flex:1,overflow:"hidden",background:"#1a1a2e",display:"flex",alignItems:"stretch"}}>
@@ -554,23 +556,25 @@ function SambutanBlock({ev,canUpload,onUploadDocx,onRemove}){
       </div>}
       <div style={{background:"linear-gradient(135deg,#ECFDF5,#D1FAE5)",borderRadius:12,padding:13,border:"1.5px solid #6EE7B7"}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-          <div style={{width:36,height:36,borderRadius:9,background:GREEN,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>📄</div>
+          <div style={{width:36,height:36,borderRadius:9,background:GREEN_,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>📄</div>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:12,fontWeight:800,color:GREEN}}>Naskah Sambutan</div>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <div style={{fontSize:12,fontWeight:800,color:GREEN_}}>Naskah Sambutan</div>
+              {isPdfDirect&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:10,background:"#e0f2fe",color:"#0369a1",fontWeight:700}}>PDF</span>}
+            </div>
             <div style={{fontSize:11,color:"#065f46",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.sambutanNama}</div>
-            {ev.sambutanDocxNama&&<div style={{fontSize:10,color:"#6B7280",marginTop:1}}>📎 DOCX: {ev.sambutanDocxNama}</div>}
+            {ev.sambutanDocxNama&&<div style={{fontSize:10,color:"#6B7280",marginTop:1}}>{"📎 DOCX: "+ev.sambutanDocxNama}</div>}
           </div>
         </div>
         <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
-          <button onClick={()=>setViewPdf(true)} style={{flex:1,minWidth:80,padding:"9px 8px",borderRadius:9,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>👁 Baca PDF</button>
-          <a href={ev.sambutanFile} download={ev.sambutanNama} style={{flex:1,minWidth:80,padding:"9px 8px",borderRadius:9,border:"1.5px solid "+NAVY,background:"white",color:NAVY,textDecoration:"none",textAlign:"center",fontSize:12,fontWeight:700}}>⬇ Unduh PDF</a>
-          {canUpload&&<><button onClick={()=>{if(ref.current)ref.current.click();}} style={{padding:"9px 10px",borderRadius:9,border:"1.5px solid #94A3B8",background:"white",color:"#475569",cursor:"pointer",fontSize:11,fontWeight:700}}>🔄 Ganti</button><button onClick={onRemove} style={{padding:"9px 10px",borderRadius:9,border:"1.5px solid #FCA5A5",background:"white",color:"#EF4444",cursor:"pointer",fontSize:11,fontWeight:700}}>🗑</button><input ref={ref} type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={e=>{handleFile(e.target.files[0]);e.target.value="";}} style={{display:"none"}}/></>}
+          <button onClick={()=>setViewPdf(true)} style={{flex:1,minWidth:80,padding:"9px 8px",borderRadius:9,border:"none",background:NAVY_,color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>👁 Baca PDF</button>
+          <a href={ev.sambutanFile} download={ev.sambutanNama} style={{flex:1,minWidth:80,padding:"9px 8px",borderRadius:9,border:"1.5px solid "+NAVY_,background:"white",color:NAVY_,textDecoration:"none",textAlign:"center",fontSize:12,fontWeight:700}}>⬇ Unduh PDF</a>
+          {canUpload&&<><button onClick={()=>{if(ref.current)ref.current.click();}} style={{padding:"9px 10px",borderRadius:9,border:"1.5px solid #94A3B8",background:"white",color:"#475569",cursor:"pointer",fontSize:11,fontWeight:700}}>🔄 Ganti</button><button onClick={onRemove} style={{padding:"9px 10px",borderRadius:9,border:"1.5px solid #FCA5A5",background:"white",color:"#EF4444",cursor:"pointer",fontSize:11,fontWeight:700}}>🗑</button><input ref={ref} type="file" accept=".docx,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf" onChange={e=>{handleFile(e.target.files[0]);e.target.value="";}} style={{display:"none"}}/></>}
         </div>
       </div>
     </>;
   }
 
-  // ── Upload area ──
   if(canUpload){
     const isProcessing=step==="processing";
     return <div
@@ -578,15 +582,15 @@ function SambutanBlock({ev,canUpload,onUploadDocx,onRemove}){
       onDragLeave={()=>setDrag(false)}
       onDrop={handleDrop}
       style={{borderRadius:12,border:"2px dashed "+(drag?"#6366F1":isProcessing?"#A5B4FC":"#C4B5FD"),background:drag?"#F5F3FF":isProcessing?"#F8F7FF":"#FAFAFA",padding:"20px 16px",transition:"all 0.2s"}}>
-      <input ref={ref} type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={e=>{handleFile(e.target.files[0]);e.target.value="";}} style={{display:"none"}}/>
+      <input ref={ref} type="file" accept=".docx,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf" onChange={e=>{handleFile(e.target.files[0]);e.target.value="";}} style={{display:"none"}}/>
       <div style={{textAlign:"center"}}>
         {isProcessing
           ?<>
-            <div style={{fontSize:28,marginBottom:8,className:"prokopim-pulse"}}>⚙️</div>
-            <div style={{fontSize:13,fontWeight:700,color:"#4F46E5",marginBottom:4}}>Memproses Naskah...</div>
+            <div style={{fontSize:28,marginBottom:8}}>⚙️</div>
+            <div style={{fontSize:13,fontWeight:700,color:"#4F46E5",marginBottom:4}}>Memproses...</div>
             <div style={{fontSize:11,color:"#818CF8"}}>{progress}</div>
             <div style={{marginTop:12,height:4,background:"#E0E7FF",borderRadius:4,overflow:"hidden"}}>
-              <div style={{height:"100%",background:"linear-gradient(90deg,#6366F1,#A5B4FC)",borderRadius:4,className:"prokopim-slide"}}/>
+              <div style={{height:"100%",background:"linear-gradient(90deg,#6366F1,#A5B4FC)",borderRadius:4}}/>
             </div>
           </>
           :step==="error"
@@ -597,10 +601,13 @@ function SambutanBlock({ev,canUpload,onUploadDocx,onRemove}){
           </>
           :<>
             <div style={{fontSize:32,marginBottom:8}}>📝</div>
-            <div style={{fontSize:13,fontWeight:700,color:"#4F46E5",marginBottom:4}}>Upload Naskah Sambutan</div>
-            <div style={{fontSize:11,color:"#6B7280",marginBottom:12}}>Format .docx · Maks 5MB · Auto-convert ke PDF resmi</div>
-            <button onClick={()=>ref.current.click()} style={{padding:"10px 22px",borderRadius:9,border:"none",background:"linear-gradient(135deg,#6366F1,#4F46E5)",color:"white",cursor:"pointer",fontSize:13,fontWeight:700,boxShadow:"0 3px 10px rgba(99,102,241,0.35)"}}>Pilih File DOCX</button>
-            <div style={{fontSize:10,color:"#9CA3AF",marginTop:8}}>atau seret & lepas file di sini</div>
+            <div style={{fontSize:13,fontWeight:700,color:"#4F46E5",marginBottom:6}}>Upload Naskah Sambutan</div>
+            <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:12,flexWrap:"wrap"}}>
+              <span style={{fontSize:10,padding:"3px 9px",borderRadius:10,background:"#EDE9FE",color:"#5B21B6",fontWeight:700}}>📝 DOCX → PDF Otomatis</span>
+              <span style={{fontSize:10,padding:"3px 9px",borderRadius:10,background:"#E0F2FE",color:"#0369A1",fontWeight:700}}>📄 PDF Langsung</span>
+            </div>
+            <button onClick={()=>ref.current.click()} style={{padding:"10px 22px",borderRadius:9,border:"none",background:"linear-gradient(135deg,#6366F1,#4F46E5)",color:"white",cursor:"pointer",fontSize:13,fontWeight:700,boxShadow:"0 3px 10px rgba(99,102,241,0.35)"}}>Pilih File</button>
+            <div style={{fontSize:10,color:"#9CA3AF",marginTop:8}}>DOCX atau PDF · Maks 10MB · atau seret & lepas di sini</div>
           </>
         }
       </div>
@@ -608,7 +615,6 @@ function SambutanBlock({ev,canUpload,onUploadDocx,onRemove}){
   }
   return <div style={{padding:"9px 12px",background:"#FEF9C3",borderRadius:8,fontSize:12,color:"#92400E",fontWeight:600}}>⏳ Naskah sambutan belum diupload</div>;
 }
-
 // ==================== AI MODAL ====================
 function AIModal({onFill,onClose}){
   const ref=useRef();const undanganRef=useRef();const[drag,setDrag]=useState(false);const[loading,setLoading]=useState(false);const[result,setResult]=useState(null);const[edited,setEdited]=useState(null);const[err,setErr]=useState("");const[undanganFile,setUndanganFile]=useState(null);const[undanganNama,setUndanganNama]=useState("");const[validErr,setValidErr]=useState("");
@@ -5273,7 +5279,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
           </div>
         </div>
         {ev.jenisKegiatan==="Sambutan"&&<div>
-          <SambutanBlock ev={ev} canUpload={role==="timkom"||role==="kasubbag_komdokpim"} onUploadDocx={(f)=>handleSambutanDocx(ev.id,f,ev)} onRemove={()=>{if(ev.sambutanFile&&!ev.sambutanFile.startsWith("data:"))storageDelete("sambutan",ev.sambutanFile).catch(()=>{});if(ev.sambutanDocx&&!ev.sambutanDocx.startsWith("data:")&&!ev.sambutanDocx.startsWith("blob:"))storageDelete("sambutan",ev.sambutanDocx).catch(()=>{});updAndSync(ev.id,{sambutanFile:null,sambutanNama:"",sambutanDocx:null,sambutanDocxNama:""});showT("Naskah sambutan dihapus","warn");}}/>
+          <SambutanBlock ev={ev} canUpload={role==="timkom"||role==="kasubbag_komdokpim"} onUploadDocx={(f)=>handleSambutanDocx(ev.id,f,ev)} onUploadPdf={(f,name)=>handleSambutanUpload(ev.id,f,name).then(()=>showT("Naskah sambutan (PDF) diupload"))} onRemove={()=>{if(ev.sambutanFile&&!ev.sambutanFile.startsWith("data:"))storageDelete("sambutan",ev.sambutanFile).catch(()=>{});if(ev.sambutanDocx&&!ev.sambutanDocx.startsWith("data:")&&!ev.sambutanDocx.startsWith("blob:"))storageDelete("sambutan",ev.sambutanDocx).catch(()=>{});updAndSync(ev.id,{sambutanFile:null,sambutanNama:"",sambutanDocx:null,sambutanDocxNama:""});showT("Naskah sambutan dihapus","warn");}}/>
         </div>}
       </div>
 
