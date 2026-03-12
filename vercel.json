@@ -2,23 +2,19 @@
   "crons": [
     {
       "path": "/api/notif-pagi",
-      "schedule": "30 23 * * *",
-      "comment": "07:30 WITA — Rekap harian: Kabag, Kasubbag Komdokpim, Ajudan, Personil"
+      "schedule": "30 23 * * *"
     },
     {
       "path": "/api/notif-reminder",
-      "schedule": "55 7 * * *",
-      "comment": "15:55 WITA — Pengingat penugasan besok: Kasubbag Protokol & Komdokpim"
+      "schedule": "55 7 * * *"
     },
     {
       "path": "/api/notif-ajudan",
-      "schedule": "0 8 * * *",
-      "comment": "16:00 WITA — Rekap besok + pengingat konfirmasi kehadiran: Ajudan WK & WWK"
+      "schedule": "0 8 * * *"
     },
     {
       "path": "/api/notif-personil",
-      "schedule": "10 8 * * *",
-      "comment": "16:10 WITA — Rekap penugasan besok: Personil & Staf"
+      "schedule": "10 8 * * *"
     }
   ]
 }
