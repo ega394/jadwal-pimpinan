@@ -4362,10 +4362,24 @@ function RekapEvaluasi({events,user,isMobile}){
 }
 
 // ═══════════════════════════════════════════════════════
+// ── Komponen textarea isolasi agar typing tidak re-render seluruh dashboard ──
+function RejectTextarea({evId,placeholder,rows,style,onCommit}){
+  const[val,setVal]=useState("");
+  // Sync nilai keluar ke parent hanya onBlur (bukan tiap keystroke)
+  const commit=v=>onCommit(evId,v);
+  return <textarea
+    placeholder={placeholder}
+    value={val}
+    rows={rows||2}
+    style={style}
+    onChange={e=>setVal(e.target.value)}
+    onBlur={e=>commit(e.target.value)}
+  />;
+}
+
 // DASHBOARD KABAG — Antrian, Jadwal+Penugasan, Batal Tayang
 // ═══════════════════════════════════════════════════════
-function KabagDashboard({events, user, upd, showT, askConfirm, deleteAndSync, isMobile}){
-  const NAVY="#0A1628",GOLD="#C9A84C",GREEN="#0D6B4F";
+function KabagDashboard({events, user, upd, showT, askConfirm, deleteAndSync, isMobile}){\n  const NAVY="#0A1628",GOLD="#C9A84C",GREEN="#0D6B4F";
   const [activeTab, setActiveTab] = useState("antrian");
   const [expandedId, setExpanded] = useState(null);
   const [rejectTexts, setRT] = useState({});
@@ -4429,7 +4443,9 @@ function KabagDashboard({events, user, upd, showT, askConfirm, deleteAndSync, is
               ✅ Setujui & Publikasi
             </button>
             <div style={{borderRadius:10,overflow:"hidden",border:"1.5px solid #FECACA"}}>
-              <textarea placeholder="Catatan penolakan..." value={rejectTexts[ev.id]||""} onChange={e=>setRT(p=>({...p,[ev.id]:e.target.value}))} rows={2} style={{width:"100%",padding:"9px 11px",border:"none",resize:"none",color:"#334155",background:"white",fontSize:12,boxSizing:"border-box"}}/>
+              <RejectTextarea evId={ev.id} placeholder="Catatan penolakan..." rows={2}
+                style={{width:"100%",padding:"9px 11px",border:"none",resize:"none",color:"#334155",background:"white",fontSize:12,boxSizing:"border-box"}}
+                onCommit={(id,v)=>setRT(p=>({...p,[id]:v}))}/>
               <button onClick={()=>askConfirm("Tolak Jadwal?","Jadwal '"+ev.namaAcara+"' akan dikembalikan ke staf.",()=>{upd(ev.id,{alur:"ditolak",catatanTolak:rejectTexts[ev.id]||""});showT("Ditolak","warn");const u=loadUsers().find(x=>x.username===ev.submittedBy);if(u?.noWA)sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,event:"rejected",catatanTolak:rejectTexts[ev.id]||"",submittedBy:getNamaByUsername(ev.submittedBy)});sendPush({targetRole:"admin_rk",title:"❌ Jadwal Dikembalikan",body:ev.namaAcara+": "+(rejectTexts[ev.id]||"Perlu diperbaiki"),url:"/",tag:"rejected-"+ev.id});setExpanded(null);},"Tolak","#991B1B")}
                 style={{width:"100%",padding:"10px",border:"none",background:"#FEE2E2",color:"#991B1B",cursor:"pointer",fontSize:12,fontWeight:700}}>
                 ❌ Tolak & Kembalikan ke Staf
@@ -4489,8 +4505,9 @@ function KabagDashboard({events, user, upd, showT, askConfirm, deleteAndSync, is
               <div style={{padding:"8px 11px",fontSize:11,color:"#92400E",fontWeight:600}}>
                 ⚠️ Batalkan tayang & kembalikan ke Kasubbag untuk diperbaiki atau dihapus
               </div>
-              <textarea placeholder="Alasan pembatalan tayang (wajib)..." value={rejectTexts[ev.id+"_recall"]||""} onChange={e=>setRT(p=>({...p,[ev.id+"_recall"]:e.target.value}))} rows={2}
-                style={{width:"100%",padding:"8px 11px",border:"none",borderTop:"1px solid #FCD34D",resize:"none",fontSize:12,boxSizing:"border-box",color:"#334155",background:"white"}}/>
+              <RejectTextarea evId={ev.id+"_recall"} placeholder="Alasan pembatalan tayang (wajib)..." rows={2}
+                style={{width:"100%",padding:"8px 11px",border:"none",borderTop:"1px solid #FCD34D",resize:"none",fontSize:12,boxSizing:"border-box",color:"#334155",background:"white"}}
+                onCommit={(id,v)=>setRT(p=>({...p,[id]:v}))}/>
               <button onClick={()=>{
                 if(!(rejectTexts[ev.id+"_recall"]||"").trim()){showT("Tulis alasan pembatalan dulu","warn");return;}
                 askConfirm(
