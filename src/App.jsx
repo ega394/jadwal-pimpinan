@@ -351,6 +351,52 @@ async function storageUpload(bucket,evId,file){
   if(!r.ok)return null;
   return SUPA_URL+"/storage/v1/object/public/"+bucket+"/"+path;
 }
+// Kompresi file ke maks 1MB sebelum upload
+// - Gambar: iterasi turunkan kualitas JPEG sampai ≤1MB
+// - PDF  : tidak bisa dikompres di browser, upload apa adanya
+async function compressFileTo1MB(file){
+  const MAX=1*1024*1024;
+  if(file.type==="application/pdf"){
+    // PDF tak bisa dikompres di browser — kembalikan apa adanya
+    return file;
+  }
+  return new Promise(resolve=>{
+    const img=new Image();
+    const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      URL.revokeObjectURL(url);
+      // Scale-down dimensi jika sangat besar
+      const MAX_DIM=2560;
+      let w=img.width,h=img.height;
+      if(w>MAX_DIM||h>MAX_DIM){
+        if(w>h){h=Math.round(h*MAX_DIM/w);w=MAX_DIM;}
+        else{w=Math.round(w*MAX_DIM/h);h=MAX_DIM;}
+      }
+      const canvas=document.createElement("canvas");
+      canvas.width=w;canvas.height=h;
+      canvas.getContext("2d").drawImage(img,0,0,w,h);
+      // Iterasi turunkan kualitas sampai ≤ 1MB
+      const toFile=(dataUrl)=>{
+        const arr=dataUrl.split(","),mime="image/jpeg";
+        const bstr=atob(arr[1]);const n=bstr.length;
+        const u8=new Uint8Array(n);
+        for(let i=0;i<n;i++)u8[i]=bstr.charCodeAt(i);
+        return new File([u8],file.name.replace(/\.[^.]+$/,"")+"_compressed.jpg",{type:mime});
+      };
+      const tryQ=(q)=>{
+        const dataUrl=canvas.toDataURL("image/jpeg",q);
+        // estimasi ukuran dari base64 length
+        const est=Math.round((dataUrl.length-dataUrl.indexOf(",")-1)*3/4);
+        if(est<=MAX||q<=0.08){resolve(toFile(dataUrl));}
+        else{tryQ(parseFloat((q-0.08).toFixed(2)));}
+      };
+      tryQ(0.82);
+    };
+    img.onerror=()=>resolve(file);
+    img.src=url;
+  });
+}
+
 async function storageDelete(bucket,url){
   if(!SUPA_OK||!url)return;
   const m=url.match(/\/object\/public\/[^/]+\/(.+)$/);
@@ -783,8 +829,8 @@ function AIModal({onFill,onClose}){
         </>}
         {loading&&<div style={{textAlign:"center",padding:"40px 20px"}}>
           <div style={{width:48,height:48,border:"4px solid #e0e7ff",borderTopColor:"#6366f1",borderRadius:"50%",animation:"spin 0.9s linear infinite",margin:"0 auto 16px"}}/>
-          <div style={{fontSize:14,fontWeight:700,color:NAVY,marginBottom:6}}>AI sedang membaca dokumen...</div>
-          <div style={{fontSize:12,color:"#64748b"}}>Menganalisa isi undangan, mohon tunggu</div>
+          <div style={{fontSize:14,fontWeight:700,color:NAVY,marginBottom:6}}>{result?"Mengompresi & mengunggah berkas...":"AI sedang membaca dokumen..."}</div>
+          <div style={{fontSize:12,color:"#64748b"}}>{result?"Berkas dikompresi ke maks 1MB lalu dikirim ke server":"Menganalisa isi undangan, mohon tunggu"}</div>
           <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
         </div>}
         {edited&&<>
@@ -810,11 +856,35 @@ function AIModal({onFill,onClose}){
           {validErr&&<div style={{padding:"8px 12px",background:"#fee2e2",borderRadius:8,fontSize:12,color:"#991b1b",marginBottom:8}}>{validErr}</div>}
           <div style={{display:"flex",gap:8,marginTop:16}}>
             <button onClick={()=>{setResult(null);setEdited(null);setErr("");setUndanganFile(null);setUndanganNama("");setValidErr("");}} style={{flex:1,padding:"11px",borderRadius:9,border:"1.5px solid #e2e8f0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#64748b"}}>Ulangi</button>
-            <button onClick={()=>{
+            <button onClick={async()=>{
               const missing=REQUIRED_FIELDS.filter(k=>!edited[k]||!String(edited[k]).trim());
               if(missing.length>0){setValidErr("Wajib diisi: "+missing.map(k=>({namaAcara:"Nama Acara",tanggal:"Tanggal",jam:"Jam",penyelenggara:"Penyelenggara",kontak:"Kontak",buktiUndangan:"No. Surat",pakaian:"Pakaian",jenisKegiatan:"Jenis Kegiatan",lokasi:"Lokasi"})[k]).join(", "));return;}
               setValidErr("");
-              onFill({...edited,_undanganFile:undanganFile,_undanganNama:undanganNama});
+              let finalUndanganFile=null;let finalUndanganNama=undanganNama;
+              if(undanganFile){
+                setLoading(true);
+                try{
+                  // Kompres ke maks 1MB
+                  const compressed=await compressFileTo1MB(undanganFile);
+                  finalUndanganNama=compressed.name||undanganNama;
+                  // Upload ke Supabase storage
+                  if(SUPA_OK){
+                    const path="ai-"+Date.now();
+                    const url=await storageUpload("undangan",path,compressed).catch(()=>null);
+                    if(url){finalUndanganFile=url;}
+                    else{
+                      // Fallback: simpan base64 jika upload gagal
+                      finalUndanganFile=await new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsDataURL(compressed);});
+                    }
+                  } else {
+                    // Offline: simpan base64
+                    const compressed2=await compressFileTo1MB(undanganFile);
+                    finalUndanganFile=await new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsDataURL(compressed2);});
+                  }
+                }catch(e){console.error("Upload undangan gagal:",e);}
+                setLoading(false);
+              }
+              onFill({...edited,undanganFile:finalUndanganFile,undanganNama:finalUndanganNama});
             }} style={{flex:2,padding:"11px",borderRadius:9,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:13,fontWeight:700}}>Gunakan Data Ini</button>
           </div>
         </>}
@@ -6201,22 +6271,12 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
     />}
     {showNotifCenter&&<NotifCenter events={events} user={user} onClose={()=>setShowNotifCenter(false)} isMobile={isMobile}/>}
     {showForgot&&<ForgotPasswordModal onClose={()=>setShowForgot(false)}/>}
-    {showAI&&<AIModal onFill={async d=>{
-      const{_undanganFile,_undanganNama,...formData}=d;
-      setForm(p=>({...p,...formData}));
-      if(_undanganFile){
-        // Simpan sebagai base64 dulu — langsung tampil di form tanpa tunggu upload
-        const nama=_undanganNama||_undanganFile.name;
-        const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsDataURL(_undanganFile);});
-        setForm(p=>({...p,undanganFile:b64,undanganNama:nama,_undanganFromAI:true}));
-        // Upload ke Supabase storage di background — ganti base64 dengan URL bila berhasil
-        if(SUPA_OK){
-          storageUpload("undangan","ai-"+Date.now(),_undanganFile)
-            .then(url=>{if(url)setForm(p=>({...p,undanganFile:url,undanganNama:nama}));})
-            .catch(()=>{});
-        }
-      }
-      setShowAI(false);setTab("form");showT("Form terisi dari AI ✓ — berkas undangan otomatis tersimpan","warn");
+    {showAI&&<AIModal onFill={d=>{
+      // undanganFile sudah berupa URL Supabase (atau base64 fallback) — sudah dikompresi & diupload di dalam AIModal
+      const{undanganFile,undanganNama,...formData}=d;
+      setForm(p=>({...p,...formData,...(undanganFile?{undanganFile,undanganNama,_undanganFromAI:true}:{})}));
+      setShowAI(false);setTab("form");
+      showT(undanganFile?"Form terisi dari AI ✓ — berkas undangan tersimpan":"Form terisi dari AI ✓","warn");
     }} onClose={()=>setShowAI(false)}/>}
     {showSummary&&<SummaryModal events={events} onToggleHide={id=>upd(id,{tersembunyi:!events.find(e=>e.id===id)?.tersembunyi})} onClose={()=>setShowSummary(false)}/>}
     {showAdmin&&<AdminModal onClose={()=>setShowAdmin(false)} showT={showT}/>}
