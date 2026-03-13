@@ -8,6 +8,57 @@ const REG_KEY="pending_registrations";
 function loadPendingRegs(){try{return JSON.parse(localStorage.getItem(REG_KEY)||"[]");}catch{return[];}}
 function savePendingRegs(regs){localStorage.setItem(REG_KEY,JSON.stringify(regs));}
 
+// ═══════════════════════════════════════════════════════
+// KEAMANAN: Rate Limiter Login (anti brute-force)
+// ═══════════════════════════════════════════════════════
+const LOGIN_MAX_ATTEMPTS=5;
+const LOGIN_LOCKOUT_MS=3*60*1000;
+function getLoginAttempts(){try{return JSON.parse(sessionStorage.getItem("jp_login_attempts")||'{"count":0,"firstAt":0,"lockedUntil":0}');}catch{return{count:0,firstAt:0,lockedUntil:0};}}
+function recordLoginAttempt(success){
+  if(success){sessionStorage.removeItem("jp_login_attempts");return;}
+  const a=getLoginAttempts();const now=Date.now();
+  if(now-a.firstAt>LOGIN_LOCKOUT_MS){a.count=1;a.firstAt=now;a.lockedUntil=0;}else{a.count++;}
+  if(a.count>=LOGIN_MAX_ATTEMPTS)a.lockedUntil=now+LOGIN_LOCKOUT_MS;
+  sessionStorage.setItem("jp_login_attempts",JSON.stringify(a));
+}
+function isLoginLocked(){const a=getLoginAttempts();if(a.lockedUntil&&Date.now()<a.lockedUntil)return Math.ceil((a.lockedUntil-Date.now())/1000);return 0;}
+
+// ═══════════════════════════════════════════════════════
+// KEAMANAN: Session Timeout (auto-logout 12 jam idle)
+// ═══════════════════════════════════════════════════════
+const SESSION_TIMEOUT_MS=12*60*60*1000;
+let _lastActivity=Date.now();
+function touchActivity(){_lastActivity=Date.now();}
+
+// ═══════════════════════════════════════════════════════
+// KEAMANAN: Input Sanitizer (anti XSS)
+// ═══════════════════════════════════════════════════════
+function sanitize(str){if(typeof str!=="string")return str;return str.replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#x27;");}
+
+// ═══════════════════════════════════════════════════════
+// UX: Password Strength Meter
+// ═══════════════════════════════════════════════════════
+function getPasswordStrength(pw){
+  if(!pw)return{score:0,label:"",color:"#E2E8F0"};
+  let s=0;if(pw.length>=6)s++;if(pw.length>=10)s++;
+  if(/[A-Z]/.test(pw))s++;if(/[0-9]/.test(pw))s++;if(/[^A-Za-z0-9]/.test(pw))s++;
+  if(s<=1)return{score:20,label:"Lemah",color:"#EF4444"};
+  if(s===2)return{score:40,label:"Cukup",color:"#F59E0B"};
+  if(s===3)return{score:60,label:"Sedang",color:"#EAB308"};
+  if(s===4)return{score:80,label:"Kuat",color:"#22C55E"};
+  return{score:100,label:"Sangat Kuat",color:"#059669"};
+}
+function PasswordStrengthBar({password}){
+  const s=getPasswordStrength(password);
+  if(!password)return null;
+  return <div style={{marginTop:6}}>
+    <div style={{height:4,borderRadius:4,background:"#F1F5F9",overflow:"hidden",marginBottom:3}}>
+      <div style={{height:"100%",width:s.score+"%",background:s.color,borderRadius:4,transition:"all 0.4s cubic-bezier(0.34,1.56,0.64,1)"}}/>
+    </div>
+    <div style={{fontSize:10,fontWeight:700,color:s.color,textAlign:"right"}}>{s.label}</div>
+  </div>;
+}
+
 // ── CaptchaBox: CAPTCHA matematika sederhana, tanpa layanan eksternal ──
 function CaptchaBox({onValid}){
   const gen=()=>{
@@ -136,6 +187,7 @@ function RegisterModal({onClose, onSuccess}){
             <div key={f.k} style={{marginBottom:12}}>
               <label style={{display:"block",fontSize:12,fontWeight:700,color:"#475569",marginBottom:4}}>{f.l}</label>
               <input type="password" value={form[f.k]} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} style={inp}/>
+              {f.k==="password"&&<PasswordStrengthBar password={form.password}/>}
             </div>
           ))}
           <div style={{marginBottom:18}}>
@@ -534,8 +586,10 @@ const JenisBadge=({j})=>{const m={Sambutan:{bg:"#fdf4ff",c:"#9333ea"},Pengarahan
 function Toast({msg,type}){
   const bg=type==="error"?"rgba(220,38,38,0.96)":type==="warn"?"rgba(217,119,6,0.96)":"rgba(10,22,40,0.95)";
   const icon=type==="error"?"⚠️":type==="warn"?"⚡":"✓";
-  return <div style={{position:"fixed",top:"env(safe-area-inset-top,20px)",marginTop:20,left:"50%",transform:"translateX(-50%)",zIndex:9999,padding:"11px 18px",borderRadius:40,background:bg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",color:"white",boxShadow:"0 8px 32px rgba(0,0,0,0.28)",fontSize:13,fontWeight:600,whiteSpace:"pre-wrap",display:"flex",alignItems:"center",gap:7,animation:"upSpring 0.3s ease",maxWidth:"calc(100vw - 40px)",textAlign:"center"}}>
-    <span style={{fontSize:14}}>{icon}</span>{msg}
+  const dur=type==="error"?"5s":type==="warn"?"4s":"3s";
+  return <div style={{position:"fixed",top:"env(safe-area-inset-top,20px)",marginTop:20,left:"50%",transform:"translateX(-50%)",zIndex:9999,padding:"12px 20px",borderRadius:16,background:bg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",color:"white",boxShadow:"0 8px 32px rgba(0,0,0,0.28)",fontSize:13,fontWeight:600,whiteSpace:"pre-wrap",display:"flex",alignItems:"center",gap:8,animation:"toastIn 0.35s cubic-bezier(0.34,1.56,0.64,1)",maxWidth:"calc(100vw - 40px)",textAlign:"center",lineHeight:1.4,overflow:"hidden"}}>
+    <span style={{fontSize:15,flexShrink:0}}>{icon}</span><span style={{flex:1}}>{msg}</span>
+    <div style={{position:"absolute",bottom:0,left:12,right:12,height:2,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",background:"rgba(255,255,255,0.35)",borderRadius:2,animation:"toastProgress "+dur+" linear forwards"}}/></div>
   </div>;
 }
 
@@ -1598,7 +1652,7 @@ function ProfileModal({user,onClose,showT}){
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px 20px"}}>
         {err&&<div style={{background:"#fee2e2",borderRadius:8,padding:"9px 12px",marginBottom:12,fontSize:13,color:"#991b1b"}}>{err}</div>}
         {tabP==="profile"&&<><div style={{marginBottom:12}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Nama Lengkap</label><input value={form.nama} onChange={e=>setForm(p=>({...p,nama:e.target.value}))} style={inp}/></div><div style={{marginBottom:12}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Jabatan</label><input value={form.jabatan} onChange={e=>setForm(p=>({...p,jabatan:e.target.value}))} style={inp}/></div><div style={{marginBottom:16}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>No. WhatsApp</label><input value={form.noWA} onChange={e=>setForm(p=>({...p,noWA:e.target.value}))} placeholder="08123456789" style={inp}/><div style={{fontSize:11,color:"#94a3b8",marginTop:3}}>📱 Digunakan untuk menerima kode OTP reset password</div></div><button onClick={saveProfile} style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:14,fontWeight:700}}>Simpan Profil</button></>}
-        {tabP==="password"&&<><div style={{marginBottom:12}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Password Lama</label><input type="password" value={pw.old} onChange={e=>setPw(p=>({...p,old:e.target.value}))} style={inp}/></div><div style={{marginBottom:12}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Password Baru (min. 6 karakter)</label><input type="password" value={pw.next} onChange={e=>setPw(p=>({...p,next:e.target.value}))} style={inp}/></div><div style={{marginBottom:16}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Konfirmasi Password Baru</label><input type="password" value={pw.confirm} onChange={e=>setPw(p=>({...p,confirm:e.target.value}))} style={inp}/></div><button onClick={changePassword} style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:GREEN,color:"white",cursor:"pointer",fontSize:14,fontWeight:700}}>Ubah Password</button></>}
+        {tabP==="password"&&<><div style={{marginBottom:12}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Password Lama</label><input type="password" value={pw.old} onChange={e=>setPw(p=>({...p,old:e.target.value}))} style={inp}/></div><div style={{marginBottom:12}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Password Baru (min. 6 karakter)</label><input type="password" value={pw.next} onChange={e=>setPw(p=>({...p,next:e.target.value}))} style={inp}/><PasswordStrengthBar password={pw.next}/></div><div style={{marginBottom:16}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Konfirmasi Password Baru</label><input type="password" value={pw.confirm} onChange={e=>setPw(p=>({...p,confirm:e.target.value}))} style={inp}/></div><button onClick={changePassword} style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:GREEN,color:"white",cursor:"pointer",fontSize:14,fontWeight:700}}>Ubah Password</button></>}
         {tabP==="username"&&<><div style={{background:"#fef3c7",borderRadius:9,padding:"9px 12px",marginBottom:14,fontSize:13,color:"#92400e",border:"1px solid #fde68a"}}>Setelah ubah username, Anda akan diminta login ulang.</div><div style={{marginBottom:12}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Username Baru</label><input value={uname.newUsername} onChange={e=>setUname(p=>({...p,newUsername:e.target.value}))} autoCapitalize="none" style={inp}/></div><div style={{marginBottom:16}}><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Konfirmasi dengan Password Anda</label><input type="password" value={uname.pwConfirm} onChange={e=>setUname(p=>({...p,pwConfirm:e.target.value}))} style={inp}/></div><button onClick={changeUsername} style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:"#d97706",color:"white",cursor:"pointer",fontSize:14,fontWeight:700}}>Ubah Username</button></>}
         {tabP==="biometric"&&<BiometricTab user={user} showT={showT}/>}
         {tabP==="notif"&&<NotifTab user={user} showT={showT}/>}
@@ -3042,24 +3096,33 @@ export default function App(){
   const[loginLoading,setLoginLoading]=useState(false);const[loginPhase,setLoginPhase]=useState("");
   const[delegTarget,setDelegTarget]= useState(null);const[expandedId,setExp]=useState(null);const[rejectTexts,setRT]=useState({});const[catatanInput,setCatatanInput]=useState({});const[penugasanEv,setPenugasanEv]=useState(null);const[notifPenugasan,setNotifPenugasan]=useState([]);const[evaluasiEv,setEvaluasiEv]=useState(null);const[showMobMenu,setMobMenu]=useState(false);const[showNotifCenter,setShowNotifCenter]=useState(false);
   const undanganRef=useRef({});
+  // ── UX & Security States ──
+  const[sessionWarn,setSessionWarn]=useState(false);
+  const[isOffline,setIsOffline]=useState(!navigator.onLine);
+  const[showScrollTop,setShowScrollTop]=useState(false);
+  const[lockSeconds,setLockSeconds]=useState(0);
+  const[pullRefreshing,setPullRefreshing]=useState(false);
 
   // Session restore dilakukan di boot() useEffect di atas
 
   const doLogin=async()=>{
     setLE("");
+    const lockLeft=isLoginLocked();
+    if(lockLeft>0){setLE("Terlalu banyak percobaan. Silakan tunggu "+Math.ceil(lockLeft/60)+" menit lagi.");setLockSeconds(lockLeft);return;}
+    if(!loginForm.username.trim()||!loginForm.password){setLE("Silakan isi username dan password Anda.");return;}
     const users=loadUsers();
     const candidate=users.find(u=>u.username===loginForm.username.toLowerCase().trim());
-    if(!candidate){setLE("Username atau password salah.");return;}
+    if(!candidate){recordLoginAttempt(false);setLE("Username atau password tidak sesuai. Silakan coba lagi.");return;}
     const ok=await verifyPassword(loginForm.password,candidate.password);
-    if(!ok){setLE("Username atau password salah.");return;}
-    // Loading screen 2 detik
+    if(!ok){recordLoginAttempt(false);const att=getLoginAttempts();const remain=LOGIN_MAX_ATTEMPTS-att.count;if(remain>0&&remain<=2)setLE("Password tidak sesuai. "+remain+" percobaan tersisa sebelum akun dikunci sementara.");else setLE("Username atau password tidak sesuai. Silakan coba lagi.");return;}
+    recordLoginAttempt(true);touchActivity();
     setLoginLoading(true);
     setLoginPhase("Memverifikasi identitas...");
-    await new Promise(r=>setTimeout(r,800));
+    await new Promise(r=>setTimeout(r,600));
     setLoginPhase("Memuat data jadwal...");
-    await new Promise(r=>setTimeout(r,900));
+    await new Promise(r=>setTimeout(r,700));
     setLoginPhase("Menyiapkan dashboard...");
-    await new Promise(r=>setTimeout(r,800));
+    await new Promise(r=>setTimeout(r,500));
     setLoginLoading(false);
     setUser(candidate);setTab(["ajudan_walikota","ajudan_wakilwalikota"].includes(candidate.role)?"ajudan":["kabag","kasubbag_protokol","kasubbag_komdokpim"].includes(candidate.role)?"dashboard":candidate.role==="mitra_kerja"?"mitra":"jadwal");
     try{const seen=JSON.parse(localStorage.getItem("jp_seen_onboarding")||"{}");if(!seen[candidate.username]){setShowOnboarding(true);}}catch{}
@@ -3067,24 +3130,24 @@ export default function App(){
     registerPush(candidate.username,candidate.role);
   };
   const doBioLogin=async()=>{
-    const un=loginForm.username.toLowerCase().trim();if(!un){setLE("Isi username terlebih dahulu.");return;}
+    const un=loginForm.username.toLowerCase().trim();if(!un){setLE("Silakan isi username terlebih dahulu.");return;}
     const u=loadUsers().find(u=>u.username===un);if(!u){setLE("Username tidak ditemukan.");return;}
     if(!bioIsRegistered(un)){setBioErr("Biometrik belum didaftarkan untuk akun ini. Login dengan password terlebih dahulu, lalu daftarkan biometrik di Pengaturan Akun.");return;}
     setBioLoading(true);setBioErr("");
     try{
-      await bioAuthenticate(un);
+      await bioAuthenticate(un);touchActivity();
       setLoginLoading(true);setLoginPhase("Memverifikasi biometrik...");
-      await new Promise(r=>setTimeout(r,800));
+      await new Promise(r=>setTimeout(r,600));
       setLoginPhase("Memuat data jadwal...");
-      await new Promise(r=>setTimeout(r,900));
+      await new Promise(r=>setTimeout(r,700));
       setLoginPhase("Menyiapkan dashboard...");
-      await new Promise(r=>setTimeout(r,800));
+      await new Promise(r=>setTimeout(r,500));
       setLoginLoading(false);
       setUser(u);setTab("jadwal");try{localStorage.setItem("jp_session",JSON.stringify({username:un}));}catch{}registerPush(un,u.role);}
-    catch(e){setBioErr("Biometrik gagal: "+e.message);}
+    catch(e){setBioErr("Verifikasi biometrik gagal. Silakan coba lagi atau gunakan password.");}
     setBioLoading(false);
   };
-  const doLogout=()=>{setUser(null);try{localStorage.removeItem("jp_session");}catch{}};
+  const doLogout=(reason)=>{setUser(null);setSessionWarn(false);try{localStorage.removeItem("jp_session");}catch{}if(reason==="timeout")setLE("Sesi Anda berakhir karena tidak aktif selama 12 jam. Silakan login kembali.");};
 
   useEffect(()=>{
     // Load users DAN events bersamaan dari Supabase
@@ -3108,6 +3171,65 @@ export default function App(){
 
   useEffect(()=>{setSearchQ("");setShowSearch(false);},[tab]);
 
+  // ── KEAMANAN: Session Timeout Watcher (12 jam) ──
+  useEffect(()=>{
+    if(!user)return;
+    const evts=["mousedown","mousemove","keydown","scroll","touchstart","click"];
+    const onActivity=()=>{touchActivity();setSessionWarn(false);};
+    evts.forEach(e=>window.addEventListener(e,onActivity,{passive:true}));
+    const checker=setInterval(()=>{
+      const idle=Date.now()-_lastActivity;
+      if(idle>SESSION_TIMEOUT_MS){doLogout("timeout");}
+      else if(idle>SESSION_TIMEOUT_MS-5*60*1000){setSessionWarn(true);}
+      else{setSessionWarn(false);}
+    },30000);
+    return()=>{evts.forEach(e=>window.removeEventListener(e,onActivity));clearInterval(checker);};
+  },[user]);
+
+  // ── UX: Online/Offline Detection ──
+  useEffect(()=>{
+    const goOn=()=>setIsOffline(false);const goOff=()=>setIsOffline(true);
+    window.addEventListener("online",goOn);window.addEventListener("offline",goOff);
+    return()=>{window.removeEventListener("online",goOn);window.removeEventListener("offline",goOff);};
+  },[]);
+
+  // ── UX: Scroll-to-top visibility ──
+  useEffect(()=>{
+    const onScroll=()=>setShowScrollTop(window.scrollY>400);
+    window.addEventListener("scroll",onScroll,{passive:true});
+    return()=>window.removeEventListener("scroll",onScroll);
+  },[]);
+
+  // ── KEAMANAN: Lockout countdown timer ──
+  useEffect(()=>{
+    if(lockSeconds<=0)return;
+    const t=setInterval(()=>{const left=isLoginLocked();setLockSeconds(left);if(left<=0){clearInterval(t);setLE("");}},1000);
+    return()=>clearInterval(t);
+  },[lockSeconds]);
+
+  // ── UX: Pull-to-refresh (mobile) ──
+  useEffect(()=>{
+    if(!user||!isMobile)return;
+    let startY=0,pulling=false;
+    const onTS=e=>{if(window.scrollY<=0){startY=e.touches[0].clientY;pulling=true;}};
+    const onTM=e=>{
+      if(!pulling)return;
+      const diff=e.touches[0].clientY-startY;
+      if(diff>90&&!pullRefreshing){
+        pulling=false;setPullRefreshing(true);
+        (async()=>{
+          try{if(SUPA_OK){const rows=await dbLoadAll();if(rows&&rows.length>0)setEvents(rows);}}catch{}
+          setTimeout(()=>{setPullRefreshing(false);showT("Data diperbarui ✓");},600);
+        })();
+      }
+    };
+    const onTE=()=>{pulling=false;};
+    window.addEventListener("touchstart",onTS,{passive:true});
+    window.addEventListener("touchmove",onTM,{passive:true});
+    window.addEventListener("touchend",onTE,{passive:true});
+    return()=>{window.removeEventListener("touchstart",onTS);window.removeEventListener("touchmove",onTM);window.removeEventListener("touchend",onTE);};
+  },[user,isMobile,pullRefreshing]);
+
   // ── Realtime: poll Supabase setiap 10 detik ──
   React.useEffect(()=>{
     if(!SUPA_OK||!user)return;
@@ -3127,7 +3249,7 @@ export default function App(){
     return ()=>clearInterval(interval);
   },[user]);
 
-  const showT=(msg,type="ok")=>{setToast({msg,type});setTimeout(()=>setToast(null),3000);};
+  const showT=(msg,type="ok")=>{setToast({msg,type});setTimeout(()=>setToast(null),type==="error"?5000:type==="warn"?4000:3000);};
   const updAndSync=useCallback((id,patch)=>{setEvents(p=>{const next=p.map(e=>e.id===id?{...e,...patch}:e);const ev=next.find(e=>e.id===id);if(ev)dbUpsert(ev).catch(console.error);return next;});},[]);
   const askConfirm=(title,body,onConfirm,confirmLabel="Ya, Lanjutkan",confirmColor="#DC2626")=>{
     setConfirmDlg({title,body,onConfirm,confirmLabel,confirmColor});
@@ -3384,7 +3506,7 @@ const TH={
 
   const CSS=`
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
-    html,body{margin:0;padding:0;width:100%;overflow-x:hidden;-webkit-text-size-adjust:100%;background:#0A1628;}
+    html,body{margin:0;padding:0;width:100%;overflow-x:hidden;-webkit-text-size-adjust:100%;background:#0A1628;scroll-behavior:smooth;}
     *{box-sizing:border-box;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif;}
     input,select,textarea,button{font-family:inherit;}
     input[type=text],input[type=password],input[type=date],input[type=time],input[type=email],select,textarea{font-size:16px!important;-webkit-appearance:none;appearance:none;}
@@ -3393,6 +3515,9 @@ const TH={
     ::-webkit-scrollbar{width:4px;height:4px;}
     ::-webkit-scrollbar-track{background:transparent;}
     ::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.15);border-radius:4px;}
+
+    /* ── Reduced Motion ── */
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:0.01ms!important;animation-iteration-count:1!important;transition-duration:0.01ms!important;}}
 
     /* ── Keyframes ── */
     @keyframes up{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
@@ -3404,6 +3529,10 @@ const TH={
     @keyframes spin{to{transform:rotate(360deg)}}
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
     @keyframes tapIn{0%{transform:scale(1)}50%{transform:scale(0.95)}100%{transform:scale(1)}}
+    @keyframes gentleShake{0%,100%{transform:translateX(0)}15%,45%,75%{transform:translateX(-4px)}30%,60%,90%{transform:translateX(4px)}}
+    @keyframes toastIn{0%{opacity:0;transform:translateY(-20px) translateX(-50%) scale(0.92)}60%{transform:translateY(4px) translateX(-50%) scale(1.02)}100%{opacity:1;transform:translateY(0) translateX(-50%) scale(1)}}
+    @keyframes toastProgress{0%{width:100%}100%{width:0%}}
+    @keyframes pullSpin{to{transform:rotate(360deg)}}
 
     /* ── Nav ── */
     .nav-btn{transition:all 0.18s cubic-bezier(0.34,1.56,0.64,1);border-radius:10px!important;}
@@ -3425,11 +3554,13 @@ const TH={
     .btn-primary{transition:all 0.15s ease;}
     .btn-primary:hover{opacity:0.88;transform:translateY(-1px);}
     .btn-primary:active{transform:scale(0.97);}
+    button:disabled{opacity:0.5;cursor:not-allowed!important;transform:none!important;}
 
     /* ── Table ── */
     table.ev-table{width:100%;border-collapse:collapse;font-size:13px;}
     table.ev-table thead th{background:#F6F9FE;color:#64748B;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.7px;padding:11px 14px;text-align:left;border-bottom:1.5px solid #E4EAF2;white-space:nowrap;}
     table.ev-table tbody td{padding:12px 14px;border-bottom:1px solid #F0F4FA;vertical-align:middle;}
+    table.ev-table tbody tr{transition:background 0.15s ease;}
     table.ev-table tbody tr:hover td{background:#F5F8FF;}
     table.ev-table tbody tr:last-child td{border-bottom:none;}
 
@@ -3449,8 +3580,9 @@ const TH={
     /* ── Forms ── */
     .form-section{background:white;border-radius:16px;padding:20px;box-shadow:0 2px 16px rgba(0,0,0,0.06);border:1px solid #E8EDF4;margin-bottom:14px;}
     .form-section h3{margin:0 0 14px;font-size:14px;font-weight:800;color:#0A1628;letter-spacing:-0.2px;}
-    input:focus,select:focus,textarea:focus{outline:none;border-color:#0A1628!important;box-shadow:0 0 0 3px rgba(10,22,40,0.07)!important;}
+    input:focus,select:focus,textarea:focus{outline:none;border-color:#0A1628!important;box-shadow:0 0 0 3px rgba(10,22,40,0.07)!important;transition:border-color 0.2s,box-shadow 0.2s;}
     button:focus-visible{outline:2px solid ${GOLD};outline-offset:2px;}
+    input,select,textarea{transition:border-color 0.2s ease,box-shadow 0.2s ease;}
 
     /* ── iOS Tab Bar ── */
     .ios-tab-bar{position:fixed;bottom:0;left:0;right:0;z-index:300;background:rgba(248,250,255,0.88);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-top:0.5px solid rgba(0,0,0,0.1);padding-bottom:env(safe-area-inset-bottom,0px);display:flex;}
@@ -3459,6 +3591,22 @@ const TH={
     .ios-tab-icon{font-size:22px;line-height:1;transition:transform 0.2s cubic-bezier(0.34,1.56,0.64,1);}
     .ios-tab-btn.active .ios-tab-icon{transform:scale(1.1);}
     .ios-tab-label{font-size:10px;font-weight:600;letter-spacing:0.1px;}
+
+    /* ── Session Timeout Warning ── */
+    .session-warn{position:fixed;top:0;left:0;right:0;z-index:10000;background:linear-gradient(135deg,#D97706,#B45309);color:white;padding:12px 20px;text-align:center;font-size:13px;font-weight:700;animation:slideDown 0.3s ease;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;}
+    .session-warn button{background:white;color:#92400E;border:none;border-radius:8px;padding:6px 16px;font-weight:700;font-size:12px;cursor:pointer;transition:transform 0.1s;}
+    .session-warn button:active{transform:scale(0.95);}
+
+    /* ── Offline Banner ── */
+    .offline-banner{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);z-index:9990;background:rgba(239,68,68,0.95);color:white;padding:8px 20px;border-radius:20px;font-size:12px;font-weight:700;box-shadow:0 4px 20px rgba(0,0,0,0.2);animation:upSpring 0.3s ease;display:flex;align-items:center;gap:8px;}
+
+    /* ── Scroll-to-top ── */
+    .scroll-top-btn{position:fixed;bottom:76px;right:14px;z-index:250;width:38px;height:38px;border-radius:50%;border:none;background:rgba(10,22,40,0.8);color:white;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 12px rgba(0,0,0,0.25);transition:all 0.2s ease;backdrop-filter:blur(10px);}
+    .scroll-top-btn:active{transform:scale(0.88);}
+
+    /* ── Pull-to-refresh ── */
+    .pull-refresh-bar{position:fixed;top:0;left:0;right:0;z-index:9998;display:flex;align-items:center;justify-content:center;padding:10px;background:linear-gradient(135deg,#0A1628,#1B4080);animation:slideDown 0.25s ease;}
+    .pull-refresh-spinner{width:20px;height:20px;border:2.5px solid rgba(255,255,255,0.25);border-top-color:#C9A84C;border-radius:50%;animation:pullSpin 0.7s linear infinite;}
   `;
 
   // ── LOGIN LOADING SCREEN (harus SEBELUM if(!user) agar tidak ter-override) ──
@@ -3572,10 +3720,13 @@ const TH={
             </div>
           </div>
 
-          {loginErr&&<div style={{background:"hsla(0,84%,60%,0.15)",borderRadius:9,padding:"10px 13px",marginBottom:12,fontSize:13,color:"hsl(0,84%,75%)",fontWeight:600,border:"1px solid hsla(0,84%,60%,0.3)"}}>{loginErr}</div>}
+          {loginErr&&<div style={{background:"hsla(0,84%,60%,0.15)",borderRadius:9,padding:"10px 13px",marginBottom:12,fontSize:13,color:"hsl(0,84%,75%)",fontWeight:600,border:"1px solid hsla(0,84%,60%,0.3)",animation:"gentleShake 0.4s ease"}}>
+            {loginErr}
+            {lockSeconds>0&&<div style={{marginTop:6,fontSize:11,opacity:0.8}}>⏳ Coba lagi dalam {Math.floor(lockSeconds/60)}:{String(lockSeconds%60).padStart(2,"0")}</div>}
+          </div>}
           {(bioErr||bioLoading)&&<div style={{background:"hsla(210,80%,55%,0.12)",borderRadius:9,padding:"10px 13px",marginBottom:12,fontSize:13,color:"hsl(210,80%,75%)",fontWeight:600,border:"1px solid hsla(210,80%,55%,0.25)"}}>{bioLoading?"Memverifikasi biometrik...":bioErr}</div>}
 
-          <button className="login-btn-primary" onClick={doLogin} style={{width:"100%",height:48,borderRadius:12,fontSize:15,fontWeight:800,marginBottom:10,animation:"pulseGlow 3s ease infinite"}}>Masuk</button>
+          <button className="login-btn-primary" onClick={doLogin} disabled={lockSeconds>0} style={{width:"100%",height:48,borderRadius:12,fontSize:15,fontWeight:800,marginBottom:10,animation:lockSeconds>0?"none":"pulseGlow 3s ease infinite"}}>{lockSeconds>0?"Dikunci Sementara":"Masuk"}</button>
           <button className="login-btn-outline" onClick={()=>setShowForgot(true)} style={{width:"100%",height:44,borderRadius:12,fontSize:13,fontWeight:600,marginBottom:8}}>🔑 Lupa Password?</button>
           <button onClick={()=>setShowRegister(true)} style={{width:"100%",height:42,borderRadius:12,border:"1.5px dashed rgba(201,168,76,0.5)",background:"transparent",color:GOLD2,cursor:"pointer",fontSize:13,fontWeight:600,marginBottom:8,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
               <span>📝</span> Belum punya akun? Daftar di sini
@@ -3642,10 +3793,13 @@ const TH={
             </div>
           </div>
 
-          {loginErr&&<div style={{background:"hsla(0,84%,60%,0.15)",borderRadius:9,padding:"9px 13px",marginBottom:12,fontSize:13,color:"hsl(0,84%,75%)",fontWeight:600,border:"1px solid hsla(0,84%,60%,0.3)"}}>{loginErr}</div>}
+          {loginErr&&<div style={{background:"hsla(0,84%,60%,0.15)",borderRadius:9,padding:"9px 13px",marginBottom:12,fontSize:13,color:"hsl(0,84%,75%)",fontWeight:600,border:"1px solid hsla(0,84%,60%,0.3)",animation:"gentleShake 0.4s ease"}}>
+            {loginErr}
+            {lockSeconds>0&&<div style={{marginTop:6,fontSize:11,opacity:0.8}}>⏳ Coba lagi dalam {Math.floor(lockSeconds/60)}:{String(lockSeconds%60).padStart(2,"0")}</div>}
+          </div>}
           {(bioErr||bioLoading)&&<div style={{background:"hsla(210,80%,55%,0.12)",borderRadius:9,padding:"9px 13px",marginBottom:12,fontSize:13,color:"hsl(210,80%,75%)",fontWeight:600,border:"1px solid hsla(210,80%,55%,0.25)"}}>{bioLoading?"Memverifikasi biometrik perangkat...":bioErr}</div>}
 
-          <button className="login-btn-primary" onClick={doLogin} style={{width:"100%",height:48,borderRadius:12,fontSize:15,fontWeight:800,marginBottom:10}}>Masuk</button>
+          <button className="login-btn-primary" onClick={doLogin} disabled={lockSeconds>0} style={{width:"100%",height:48,borderRadius:12,fontSize:15,fontWeight:800,marginBottom:10}}>{lockSeconds>0?"Dikunci Sementara":"Masuk"}</button>
           <button className="login-btn-outline" onClick={()=>setShowForgot(true)} style={{width:"100%",height:42,borderRadius:12,fontSize:13,fontWeight:600,marginBottom:8}}>🔑 Lupa Password?</button>
           <button onClick={()=>setShowRegister(true)} style={{width:"100%",height:42,borderRadius:12,border:"1.5px dashed rgba(201,168,76,0.5)",background:"transparent",color:GOLD2,cursor:"pointer",fontSize:13,fontWeight:600,marginBottom:8,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
               <span>📝</span> Belum punya akun? Daftar di sini
@@ -3691,7 +3845,6 @@ const TH={
       ...(role==="kabag"?[{key:"jadwal",icon:"📋",label:"Antrian"},{key:"semua",icon:"🗓️",label:"Semua Jadwal"}]:[]),
       ...((role==="ajudan_walikota"||role==="ajudan_wakilwalikota")?[{key:"ajudan",icon:"✅",label:"Konfirmasi"},{key:"jadwal",icon:"📅",label:"Jadwal"},{key:"penugasan",icon:"🎯",label:"Penugasan"}]:[]),
       ...(role==="timkom"?[{key:"jadwal",icon:"📅",label:"Jadwal"},{key:"penugasan",icon:"🎯",label:"Penugasan"}]:[]),
-      ...(role==="mitra_kerja"?[{key:"mitra",icon:"📅",label:"Agenda"}]:[]),
       ...(role==="mitra_kerja"?[{key:"mitra",icon:"📅",label:"Agenda"}]:[]),
       ...(role==="walikota"||role==="wakilwalikota"?[{key:"jadwal",icon:"📅",label:"Jadwal Saya"}]:[]),
       {key:"tayang",icon:"🏛️",label:"Agenda Tayang"},
@@ -3800,27 +3953,36 @@ const TH={
     {/* ── MORE DRAWER (bottom sheet style) ── */}
     {showMobMenu&&<>
       <div style={{position:"fixed",inset:0,zIndex:290,background:"rgba(0,0,0,0.4)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",animation:"fadeIn 0.2s ease"}} onClick={()=>setMobMenu(false)}/>
-      <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:295,background:"white",borderRadius:"20px 20px 0 0",padding:"0 16px",paddingBottom:"calc(env(safe-area-inset-bottom,0px) + 8px)",boxShadow:"0 -8px 40px rgba(0,0,0,0.2)",animation:"sheetUp 0.3s cubic-bezier(0.34,1.3,0.64,1)"}} onClick={e=>e.stopPropagation()}>
-        <div style={{width:36,height:4,background:"#E2E8F0",borderRadius:4,margin:"12px auto 16px"}}/>
-        <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,paddingLeft:2}}>MENU</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-          {[
-            {icon:"💬",label:"Rekap WA",action:()=>{setShowSummary(true);setMobMenu(false);}},
-            {icon:"📄",label:"Cetak PDF",action:()=>{setShowReport(true);setMobMenu(false);}},
-            ...(canReport?[{icon:"📊",label:"Laporan",action:()=>{setShowLaporan(true);setMobMenu(false);}}]:[]),
-            ...((KASUBBAG_ROLES.includes(role)||role==="kabag")?[{icon:"📈",label:"Rekap Evaluasi",action:()=>{setTab("penugasan");setMobMenu(false);}}]:[]),
-            {icon:"👤",label:"Profil",action:()=>{setShowProfile(true);setMobMenu(false);}},
-            ...(role==="kabag"?[{icon:"⚙️",label:"Kelola User"+(loadPendingRegs().length>0?" ("+loadPendingRegs().length+")":""),action:()=>{setShowAdmin(true);setMobMenu(false);}}]:[]),
-            ...(role==="kabag"?[{icon:"📢",label:"Kirim Pengumuman",action:()=>{setShowBroadcast(true);setMobMenu(false);}}]:[]),
-          ].map((btn,i)=>(
-            <button key={i} onClick={btn.action} className="btn-ios" style={{padding:"14px 12px",borderRadius:14,border:"1.5px solid #E4EAF2",background:"#F8FAFF",color:NAVY,cursor:"pointer",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-              <span style={{fontSize:20}}>{btn.icon}</span>{btn.label}
-            </button>
-          ))}
+      <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:295,background:"white",borderRadius:"20px 20px 0 0",boxShadow:"0 -8px 40px rgba(0,0,0,0.2)",animation:"sheetUp 0.3s cubic-bezier(0.34,1.3,0.64,1)",maxHeight:"70vh",display:"flex",flexDirection:"column"}} onClick={e=>e.stopPropagation()}>
+        {/* Handle + scrollable content */}
+        <div style={{flexShrink:0,padding:"0 16px"}}>
+          <div style={{width:36,height:4,background:"#E2E8F0",borderRadius:4,margin:"12px auto 16px"}}/>
+          <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,paddingLeft:2}}>MENU</div>
         </div>
-        <button onClick={()=>{doLogout();setMobMenu(false);}} className="btn-ios" style={{width:"100%",padding:"14px",borderRadius:14,border:"none",background:"#FEF2F2",color:"#DC2626",cursor:"pointer",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:8}}>
-          <span style={{fontSize:18}}>🚪</span>Keluar dari Akun
-        </button>
+        <div style={{flex:1,overflowY:"auto",padding:"0 16px",WebkitOverflowScrolling:"touch"}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+            {[
+              {icon:"💬",label:"Rekap WA",action:()=>{setShowSummary(true);setMobMenu(false);}},
+              {icon:"📄",label:"Cetak PDF",action:()=>{setShowReport(true);setMobMenu(false);}},
+              ...(canReport?[{icon:"📊",label:"Laporan",action:()=>{setShowLaporan(true);setMobMenu(false);}}]:[]),
+              ...((KASUBBAG_ROLES.includes(role)||role==="kabag")?[{icon:"📈",label:"Rekap Evaluasi",action:()=>{setTab("penugasan");setMobMenu(false);}}]:[]),
+              {icon:"👤",label:"Profil",action:()=>{setShowProfile(true);setMobMenu(false);}},
+              ...(role==="kabag"?[{icon:"⚙️",label:"Kelola User"+(loadPendingRegs().length>0?" ("+loadPendingRegs().length+")":""),action:()=>{setShowAdmin(true);setMobMenu(false);}}]:[]),
+              ...(role==="kabag"?[{icon:"📢",label:"Kirim Pengumuman",action:()=>{setShowBroadcast(true);setMobMenu(false);}}]:[]),
+            ].map((btn,i)=>(
+              <button key={i} onClick={btn.action} className="btn-ios" style={{padding:"14px 12px",borderRadius:14,border:"1.5px solid #E4EAF2",background:"#F8FAFF",color:NAVY,cursor:"pointer",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                <span style={{fontSize:20}}>{btn.icon}</span>{btn.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {/* Logout button - ALWAYS visible, sticky at bottom */}
+        <div style={{flexShrink:0,padding:"8px 16px",paddingBottom:"calc(env(safe-area-inset-bottom,0px) + 12px)",borderTop:"1px solid #F1F5F9",background:"white"}}>
+          <button onClick={()=>{doLogout();setMobMenu(false);}} className="btn-ios" style={{width:"100%",padding:"14px",borderRadius:14,border:"2px solid #FCA5A5",background:"#FEF2F2",color:"#DC2626",cursor:"pointer",fontSize:14,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+            <span style={{fontSize:18}}>🚪</span>Keluar dari Akun
+          </button>
+        </div>
+      </div>
       </div>
     </>}
   </>);
@@ -4095,22 +4257,24 @@ function CatatanInput({evId, initial, onSave, btnColor, placeholder, label}){
 function ConfirmModal({title, body, confirmLabel="Ya, Lanjutkan", confirmColor="#DC2626", onConfirm, onCancel}){
   return (
     <div style={{position:"fixed",inset:0,zIndex:9800,display:"flex",alignItems:"center",
-      justifyContent:"center",background:"rgba(0,0,0,0.6)",padding:16}} onClick={onCancel}>
+      justifyContent:"center",background:"rgba(0,0,0,0.5)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",padding:16,animation:"fadeIn 0.2s ease"}} onClick={onCancel}>
       <div onClick={e=>e.stopPropagation()}
-        style={{background:"white",borderRadius:18,padding:"24px 22px",maxWidth:360,width:"100%",
-          boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
-        <div style={{fontSize:28,textAlign:"center",marginBottom:12}}>⚠️</div>
-        <div style={{fontSize:16,fontWeight:800,color:"#0F172A",textAlign:"center",marginBottom:8}}>{title}</div>
-        {body&&<div style={{fontSize:13,color:"#64748B",textAlign:"center",marginBottom:20,lineHeight:1.6}}>{body}</div>}
+        style={{background:"white",borderRadius:20,padding:"28px 24px",maxWidth:380,width:"100%",
+          boxShadow:"0 24px 60px rgba(0,0,0,0.25)",animation:"up 0.25s cubic-bezier(0.34,1.3,0.64,1)"}}>
+        <div style={{width:56,height:56,borderRadius:16,background:confirmColor==="#DC2626"?"#FEF2F2":"#FFFBEB",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}>
+          <span style={{fontSize:28}}>{confirmColor==="#DC2626"?"🗑️":"⚠️"}</span>
+        </div>
+        <div style={{fontSize:17,fontWeight:800,color:"#0F172A",textAlign:"center",marginBottom:8,lineHeight:1.3}}>{title}</div>
+        {body&&<div style={{fontSize:13,color:"#64748B",textAlign:"center",marginBottom:24,lineHeight:1.6}}>{body}</div>}
         <div style={{display:"flex",gap:10}}>
           <button onClick={onCancel}
-            style={{flex:1,padding:"12px",borderRadius:12,border:"1.5px solid #E2E8F0",
-              background:"white",color:"#475569",cursor:"pointer",fontSize:13,fontWeight:600}}>
+            style={{flex:1,padding:"13px",borderRadius:12,border:"1.5px solid #E2E8F0",
+              background:"white",color:"#475569",cursor:"pointer",fontSize:13,fontWeight:700}}>
             Batal
           </button>
           <button onClick={()=>{onConfirm();onCancel();}}
-            style={{flex:1,padding:"12px",borderRadius:12,border:"none",
-              background:confirmColor,color:"white",cursor:"pointer",fontSize:13,fontWeight:800}}>
+            style={{flex:1,padding:"13px",borderRadius:12,border:"none",
+              background:confirmColor,color:"white",cursor:"pointer",fontSize:13,fontWeight:800,boxShadow:"0 2px 8px "+confirmColor+"44"}}>
             {confirmLabel}
           </button>
         </div>
@@ -6227,6 +6391,28 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
   return <div style={{minHeight:"100vh",width:"100%",background:NAVY,display:"flex"}}>
     <style>{CSS}</style>
     {toast&&<Toast msg={toast.msg} type={toast.type}/>}
+
+    {/* ── Pull-to-refresh indicator ── */}
+    {pullRefreshing&&<div className="pull-refresh-bar">
+      <div className="pull-refresh-spinner"/>
+      <span style={{color:"white",fontSize:12,fontWeight:700,marginLeft:10}}>Memperbarui data...</span>
+    </div>}
+
+    {/* ── Session Timeout Warning ── */}
+    {sessionWarn&&<div className="session-warn">
+      <span>⏱️</span>
+      <span>Sesi akan berakhir dalam 5 menit karena tidak aktif</span>
+      <button onClick={()=>{touchActivity();setSessionWarn(false);}}>Perpanjang</button>
+    </div>}
+
+    {/* ── Offline Banner ── */}
+    {isOffline&&<div className="offline-banner">
+      <span>📡</span> Koneksi terputus — data belum tersinkron
+    </div>}
+
+    {/* ── Scroll to Top ── */}
+    {showScrollTop&&isMobile&&<button className="scroll-top-btn" onClick={()=>window.scrollTo({top:0,behavior:"smooth"})} aria-label="Kembali ke atas">↑</button>}
+
     {showOnboarding&&user&&<OnboardingModal role={user.role} onClose={()=>{
       setShowOnboarding(false);
       try{const s=JSON.parse(localStorage.getItem("jp_seen_onboarding")||"{}");s[user.username]=true;localStorage.setItem("jp_seen_onboarding",JSON.stringify(s));}catch{}
