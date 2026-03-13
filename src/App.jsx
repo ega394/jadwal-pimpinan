@@ -2357,8 +2357,8 @@ function FormView({form,setForm,editId,isMobile,onSubmit,onCancel,onOpenAI,onUnd
           {fld("namaAcara","Nama Acara *","text",true)}
         </div>
         {/* Untuk Pimpinan — di step 1 karena wajib */}
-        <div style={{marginBottom:16}}>
-          <label style={{display:"block",fontSize:12,color:"#475569",fontWeight:600,marginBottom:6}}>Untuk Pimpinan *</label>
+        <div style={{marginBottom:16,padding:form.untukPimpinan.length===0?"10px":"0",borderRadius:10,border:form.untukPimpinan.length===0?"2px solid #FCA5A5":"none",background:form.untukPimpinan.length===0?"#FFF5F5":"transparent",transition:"all 0.2s"}}>
+          <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:700,marginBottom:6,color:form.untukPimpinan.length===0?"#DC2626":"#475569"}}>Untuk Pimpinan&nbsp;{form.untukPimpinan.length===0?<span style={{fontSize:10,background:"#FEE2E2",color:"#DC2626",padding:"1px 6px",borderRadius:4,fontWeight:700}}>wajib dipilih</span>:<span style={{fontSize:10,background:"#DCFCE7",color:"#16a34a",padding:"1px 6px",borderRadius:4,fontWeight:700}}>✓</span>}</label>
           <div style={{display:"flex",gap:10}}>
             {[{key:"walikota",label:"🏛 Wali Kota",istriKey:"besertaIstriWK"},{key:"wakilwalikota",label:"🏛 Wakil Wali Kota",istriKey:"besertaIstriWWK"}].map(p=>{
               const aktif=form.untukPimpinan.includes(p.key);
@@ -3047,7 +3047,7 @@ export default function App(){
   const goToPending=()=>{if(!pendingList.length)return;setFDate("");setExp(pendingList[0].id);setTimeout(()=>document.getElementById("ev-"+pendingList[0].id)?.scrollIntoView({behavior:"smooth",block:"center"}),200);};
 
   const submit=async()=>{
-    if(!form.namaAcara||!form.tanggal||!form.jam){showT("Nama acara, tanggal & jam wajib diisi.","error");return;}
+    if(!form.namaAcara||!form.tanggal||!form.jam){showT("Nama acara, tanggal & jam wajib diisi.","error");return;}if(!form.untukPimpinan||!form.untukPimpinan.length){showT("Pilih tujuan undangan (Wali Kota dan/atau Wakil Wali Kota) sebelum menyimpan.","error");return;}
     const conflict=hasConflict(events,{...form,id:editId||0,alur:"disetujui"});
     if(editId!==null){const evSebelum=events.find(e=>e.id===editId);setEvents(p=>{const next=p.map(e=>e.id===editId?{...e,...form}:e);const u=next.find(e=>e.id===editId);if(u)dbUpsert(u).catch(console.error);return next;});
       // Jika jadwal sebelumnya ditolak → otomatis kirim ulang ke Kasubbag
@@ -5258,7 +5258,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
           </div>}
 
           {/* Aksi kehadiran — hanya untuk Wali Kota (WWK punya panel disposisi sendiri di bawah) */}
-          {role==="walikota"&&<div style={{marginBottom:10}}>
+          {role==="walikota"&&!ev.delegasiKeWWK&&<div style={{marginBottom:10}}>
             <div style={{fontSize:11,fontWeight:700,color:"#475569",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Konfirmasi Kehadiran</div>
             <div style={{display:"flex",gap:8}}>
               {[{s:"hadir",l:"✓  Saya Hadir",c:GREEN},{s:"tidak_hadir",l:"✗  Tidak Hadir",c:"#991B1B"}].map(({s,l,c})=>(
