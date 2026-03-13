@@ -465,8 +465,7 @@ function makeICS(ev){
   ];
   return "data:text/calendar;charset=utf8,"+encodeURIComponent(lines.join("\r\n"));
 }
-function useWindowWidth(){const[w,setW]=useState(typeof window!=="undefined"?window.innerWidth:1280);useEffect(()=>{const h=()=>setW(window.innerWidth);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);
-  useEffect(()=>{setSearchQ("");setShowSearch(false);},[tab]);return w;}
+function useWindowWidth(){const[w,setW]=useState(typeof window!=="undefined"?window.innerWidth:1280);useEffect(()=>{const h=()=>setW(window.innerWidth);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);return w;}
 
 // ==================== SEED ====================
 const T=todayStr(),TMR=tomorrowStr();
@@ -3036,6 +3035,8 @@ export default function App(){
     };
     boot();
   },[]);
+
+  useEffect(()=>{setSearchQ("");setShowSearch(false);},[tab]);
 
   // ── Realtime: poll Supabase setiap 10 detik ──
   React.useEffect(()=>{
