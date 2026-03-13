@@ -852,16 +852,15 @@ function SummaryModal({events,onToggleHide,onClose}){
     const forWK=(ev.untukPimpinan||[]).includes("walikota");
     const forWWK=(ev.untukPimpinan||[]).includes("wakilwalikota")||ev.delegasiKeWWK;
     if(forWK){
-      if(ev.delegasiKeWWK)hadirParts.push("Wali Kota (delegasi ke Wakil Wali Kota)");
-      else if(ev.statusWK==="diwakilkan"&&ev.perwakilanWK)hadirParts.push("Wali Kota (diwakili "+ev.perwakilanWK+")");
+      if((ev.statusWK==="diwakilkan"&&ev.perwakilanWK)||(ev.delegasiKeWWK&&ev.perwakilanWK))hadirParts.push(ev.perwakilanWK);
+      else if(ev.delegasiKeWWK)hadirParts.push("Wakil Wali Kota");
       else hadirParts.push("Wali Kota");
     }
     if(forWWK&&!ev.delegasiKeWWK){
-      if(ev.statusWWK==="diwakilkan"&&ev.perwakilanWWK)hadirParts.push("Wakil Wali Kota (diwakili "+ev.perwakilanWWK+")");
+      if(ev.statusWWK==="diwakilkan"&&ev.perwakilanWWK)hadirParts.push(ev.perwakilanWWK);
       else hadirParts.push("Wakil Wali Kota");
     }
-    if(ev.delegasiKeWWK&&forWK)hadirParts.push("Wakil Wali Kota (menerima disposisi)");
-    if(hadirParts.length>0)shareLines.push("Dihadiri: "+hadirParts.join(" & "));
+    if(hadirParts.length>0)shareLines.push("Dihadiri: "+[...new Set(hadirParts)].join(" & "));
     shareLines.push("");
   });
   shareLines.push("_Disiapkan oleh Protokol & Komunikasi Pimpinan Setda Kota Tarakan_");
