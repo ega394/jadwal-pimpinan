@@ -847,6 +847,21 @@ function SummaryModal({events,onToggleHide,onClose}){
     shareLines.push(tglStr+ev.jam+" WITA");
     if(ev.penyelenggara)shareLines.push("Penyelenggara: "+ev.penyelenggara);
     if(ev.lokasi)shareLines.push("Lokasi: "+ev.lokasi);
+    // Keterangan kehadiran pimpinan
+    const hadirParts=[];
+    const forWK=(ev.untukPimpinan||[]).includes("walikota");
+    const forWWK=(ev.untukPimpinan||[]).includes("wakilwalikota")||ev.delegasiKeWWK;
+    if(forWK){
+      if(ev.delegasiKeWWK)hadirParts.push("Wali Kota (delegasi ke Wakil Wali Kota)");
+      else if(ev.statusWK==="diwakilkan"&&ev.perwakilanWK)hadirParts.push("Wali Kota (diwakili "+ev.perwakilanWK+")");
+      else hadirParts.push("Wali Kota");
+    }
+    if(forWWK&&!ev.delegasiKeWWK){
+      if(ev.statusWWK==="diwakilkan"&&ev.perwakilanWWK)hadirParts.push("Wakil Wali Kota (diwakili "+ev.perwakilanWWK+")");
+      else hadirParts.push("Wakil Wali Kota");
+    }
+    if(ev.delegasiKeWWK&&forWK)hadirParts.push("Wakil Wali Kota (menerima disposisi)");
+    if(hadirParts.length>0)shareLines.push("Dihadiri: "+hadirParts.join(" & "));
     shareLines.push("");
   });
   shareLines.push("_Disiapkan oleh Protokol & Komunikasi Pimpinan Setda Kota Tarakan_");
