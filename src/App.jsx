@@ -4820,14 +4820,13 @@ function KabagDashboard({events, user, upd, showT, askConfirm, deleteAndSync, is
 
         {/* TAB JADWAL TAYANG */}
         {activeTab==="jadwal"&&<>
-          {(()=>{const pairs=getOverlappingPairs(approved);if(!pairs.length)return null;return(
-            <div style={{background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:12,padding:"12px 14px",marginBottom:12}}>
+          {getOverlappingPairs(approved).length>0&&<div style={{background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:12,padding:"12px 14px",marginBottom:12}}>
               <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
                 <span style={{fontSize:18,flexShrink:0}}>⚡</span>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:12,fontWeight:700,color:"#991B1B",marginBottom:5}}>{pairs.length} pasang agenda berdekatan</div>
-                  {pairs.map((p,i)=>(
-                    <div key={i} style={{background:"white",borderRadius:7,padding:"6px 9px",marginBottom:i<pairs.length-1?4:0,border:"1px solid #FECACA",fontSize:11,color:"#374151"}}>
+                  <div style={{fontSize:12,fontWeight:700,color:"#991B1B",marginBottom:5}}>{getOverlappingPairs(approved).length} pasang agenda berdekatan</div>
+                  {getOverlappingPairs(approved).map((p,i)=>(
+                    <div key={i} style={{background:"white",borderRadius:7,padding:"6px 9px",marginBottom:i<getOverlappingPairs(approved).length-1?4:0,border:"1px solid #FECACA",fontSize:11,color:"#374151"}}>
                       <span style={{fontWeight:800,color:"#991B1B"}}>{p.a.jam}</span> {p.a.namaAcara}
                       <span style={{color:"#9CA3AF",margin:"0 5px"}}>↔</span>
                       <span style={{fontWeight:800,color:"#991B1B"}}>{p.b.jam}</span> {p.b.namaAcara}
@@ -4836,8 +4835,7 @@ function KabagDashboard({events, user, upd, showT, askConfirm, deleteAndSync, is
                   ))}
                 </div>
               </div>
-            </div>
-          );})()}
+            </div>}
           <div style={{fontSize:11,fontWeight:800,color:"#64748B",letterSpacing:1.2,textTransform:"uppercase",marginBottom:12}}>
             {approved.length} Jadwal Disetujui
           </div>
@@ -5289,26 +5287,21 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
               <div style={{fontSize:12,color:"#64748B",marginBottom:8}}>{ev.penyelenggara}</div>
               <DisposisiBar ev={ev}/>
               {/* Personil ditugaskan — tampil untuk kabag & kasubbag */}
-              {["kabag","kasubbag_protokol","kasubbag_komdokpim"].includes(role)&&(()=>{
-                const allU=loadUsers();
-                const personilLabels=(ev.personil||[]).map(un=>allU.find(u=>u.username===un)?.nama||un);
-                if(!personilLabels.length)return(
-                  <div style={{display:"flex",alignItems:"center",gap:5,marginTop:6}}>
+              {["kabag","kasubbag_protokol","kasubbag_komdokpim"].includes(role)&&(
+                (ev.personil||[]).length===0
+                  ?<div style={{display:"flex",alignItems:"center",gap:5,marginTop:6}}>
                     <span style={{fontSize:10,color:"#CBD5E1"}}>○</span>
                     <span style={{fontSize:11,color:"#CBD5E1",fontStyle:"italic"}}>Belum ada personil ditugaskan</span>
                   </div>
-                );
-                return(
-                  <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:7,alignItems:"center"}}>
+                  :<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:7,alignItems:"center"}}>
                     <span style={{fontSize:10,color:"#64748B",fontWeight:600,marginRight:2}}>👥</span>
-                    {personilLabels.map((nm,i)=>(
+                    {(ev.personil||[]).map((un,i)=>(
                       <span key={i} style={{background:"#EFF6FF",color:"#1D4ED8",borderRadius:5,padding:"2px 7px",fontSize:10,fontWeight:700,border:"1px solid #BFDBFE"}}>
-                        {nm}
+                        {loadUsers().find(u=>u.username===un)?.nama||un}
                       </span>
                     ))}
                   </div>
-                );
-              })()}
+              )}
             </div>
             <div style={{color:"#C8D4E0",transition:"transform 0.2s",transform:isExpanded?"rotate(180deg)":"none",marginTop:4,fontSize:12}}>▼</div>
           </div>
@@ -5500,41 +5493,29 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
           </div>
         )}
         {/* Evaluasi reminder untuk staf/timkom */}
-        {(()=>{
-          const needEval=myEvs.filter(e=>{
-            const byMe=(e.personil||[]).includes(user.username);
-            const done=(e.evaluasi||{})[user.username]?.submitted;
-            const lewat=new Date(e.tanggal+"T"+e.jam)<now;
-            return byMe&&lewat&&!done&&e.alur==="disetujui";
-          });
-          if(!needEval.length)return null;
-          return (
+        {myEvs.filter(e=>(e.personil||[]).includes(user.username)&&new Date(e.tanggal+"T"+e.jam)<now&&!(e.evaluasi||{})[user.username]?.submitted&&e.alur==="disetujui").length>0&&(
             <div style={{background:"#FEF3C7",border:"1.5px solid #F59E0B",borderRadius:12,padding:"12px 16px",marginBottom:14,display:"flex",gap:10,alignItems:"center",cursor:"pointer"}}
               onClick={()=>showT("Buka kartu kegiatan → tombol 📝 Isi Evaluasi","info")}>
               <span style={{fontSize:20,flexShrink:0}}>📝</span>
               <div style={{flex:1}}>
-                <div style={{fontSize:13,fontWeight:700,color:"#92400E"}}>{needEval.length} kegiatan belum dievaluasi</div>
+                <div style={{fontSize:13,fontWeight:700,color:"#92400E"}}>{myEvs.filter(e=>(e.personil||[]).includes(user.username)&&new Date(e.tanggal+"T"+e.jam)<now&&!(e.evaluasi||{})[user.username]?.submitted&&e.alur==="disetujui").length} kegiatan belum dievaluasi</div>
                 <div style={{fontSize:12,color:"#B45309",marginTop:2}}>Buka kartu kegiatan yang sudah selesai → tombol "Isi Evaluasi"</div>
               </div>
               <span style={{fontSize:18,color:"#B45309"}}>→</span>
             </div>
-          );
-        })()}
+        )}
 
         {/* Peringatan acara berdekatan */}
-        {(()=>{
-          const pairs=getOverlappingPairs(myEvs);
-          if(!pairs.length)return null;
-          return(
+        {getOverlappingPairs(myEvs).length>0&&(
             <div style={{background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:12,padding:"12px 16px",marginBottom:14,cursor:"default"}}>
               <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
                 <span style={{fontSize:20,flexShrink:0}}>⚡</span>
                 <div style={{flex:1}}>
                   <div style={{fontSize:13,fontWeight:700,color:"#991B1B",marginBottom:5}}>
-                    {pairs.length} pasang agenda berdekatan
+                    {getOverlappingPairs(myEvs).length} pasang agenda berdekatan
                   </div>
-                  {pairs.map((p,i)=>(
-                    <div key={i} style={{background:"white",borderRadius:8,padding:"7px 10px",marginBottom:i<pairs.length-1?5:0,border:"1px solid #FECACA"}}>
+                  {getOverlappingPairs(myEvs).map((p,i)=>(
+                    <div key={i} style={{background:"white",borderRadius:8,padding:"7px 10px",marginBottom:i<getOverlappingPairs(myEvs).length-1?5:0,border:"1px solid #FECACA"}}>
                       <div style={{fontSize:11,color:"#374151",fontWeight:600,lineHeight:1.4}}>
                         <span style={{color:"#991B1B",fontWeight:800}}>{p.a.jam}</span> {p.a.namaAcara}
                         <span style={{color:"#9CA3AF",margin:"0 6px"}}>vs</span>
@@ -5553,8 +5534,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
                 </div>
               </div>
             </div>
-          );
-        })()}
+        )}
         {/* Antrian Approval untuk kasubbag_protokol/kabag */}
         {pendingApproval.length>0&&<>
           <div style={{fontSize:11,fontWeight:800,color:"#7C3AED",letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
@@ -5613,49 +5593,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
         <span style={{fontSize:12}}>💬</span>{ev.catatanPimpinan}
       </div>}
       {/* Banner penugasan — semua role yang terlibat penugasan */}
-      {["kabag","ajudan_walikota","ajudan_wakilwalikota","kasubbag_protokol","kasubbag_komdokpim","timkom","staf","admin_rk"].includes(role)&&ev.alur==="disetujui"&&(()=>{
-        const all=loadUsers();
-        const personilList=(ev.personil||[]).map(un=>all.find(u=>u.username===un)?.nama||un);
-        const isAssigned=(ev.personil||[]).includes(user.username);
-        const evTime=new Date(ev.tanggal+"T"+ev.jam);
-        const hoursLeft=(evTime-new Date())/(1000*60*60);
-        const urgent=hoursLeft>0&&hoursLeft<=12&&(!ev.personil||ev.personil.length===0);
-        const allU=loadUsers();
-        const personilLabels=(ev.personil||[]).map(un=>{
-          const nm=allU.find(u=>u.username===un)?.nama||un;
-          return {nm,isMe:un===user.username};
-        });
-        const showNames=personilLabels.length>0;
-        return(
-          <div style={{background:isAssigned?"#F0FDF4":urgent?"#FFF7ED":showNames?"#F0F9FF":"#F8FAFC",padding:showNames?"6px 14px":"5px 14px",borderBottom:"1px solid "+(isAssigned?"#BBF7D0":urgent?"#FED7AA":showNames?"#BAE6FD":"#E2E8F0"),display:"flex",alignItems:"flex-start",gap:8,flexWrap:"wrap"}}>
-            <span style={{fontSize:12,flexShrink:0,marginTop:1}}>{urgent?"⚠️":showNames?"👥":"○"}</span>
-            <div style={{flex:1,display:"flex",flexWrap:"wrap",gap:4,alignItems:"center",minWidth:0}}>
-              {showNames
-                ?personilLabels.map((p,i)=>(
-                    <span key={i} style={{display:"inline-flex",alignItems:"center",gap:3,background:p.isMe?"#D1FAE5":"#E0F2FE",color:p.isMe?"#065F46":"#0369A1",borderRadius:5,padding:"2px 7px",fontSize:10,fontWeight:700,whiteSpace:"nowrap"}}>
-                      {p.isMe&&<span style={{fontSize:9}}>🎯</span>}
-                      {p.nm}{p.isMe?" (Anda)":""}
-                    </span>
-                  ))
-                :<span style={{fontSize:11,fontWeight:700,color:urgent?"#9A3412":"#94A3B8"}}>
-                    {urgent?"Belum ada personil!":"Belum ada penugasan"}
-                  </span>
-              }
-            </div>
-            {["kasubbag_protokol","kasubbag_komdokpim"].includes(role)&&ev.alur==="disetujui"&&<button onClick={e=>{e.stopPropagation();setPenugasanEv(ev);}} style={{flexShrink:0,padding:"2px 8px",borderRadius:5,border:"1px solid #CBD5E1",background:"white",color:"#334155",cursor:"pointer",fontSize:10,fontWeight:700}}>
-              {(!ev.personil||ev.personil.length===0)?"+ Tugaskan":"Edit"}
-            </button>}
-            {isAssigned&&ev.alur==="disetujui"&&(()=>{
-              const sudahEval=!!(ev.evaluasi||{})[user.username]?.submitted;
-              const sudahLewat=new Date()>new Date(ev.tanggal+"T"+ev.jam);
-              if(!sudahLewat)return null;
-              return <button onClick={e=>{e.stopPropagation();setEvaluasiEv(ev);}} style={{flexShrink:0,padding:"2px 8px",borderRadius:5,border:"1px solid "+(sudahEval?"#16A34A":"#7C3AED"),background:"white",color:sudahEval?"#16A34A":"#7C3AED",cursor:"pointer",fontSize:10,fontWeight:700}}>
-                {sudahEval?"✅ Evaluasi":"📝 Evaluasi"}
-              </button>;
-            })()}
-          </div>
-        );
-      })()}
+      {["kabag","ajudan_walikota","ajudan_wakilwalikota","kasubbag_protokol","kasubbag_komdokpim","timkom","staf","admin_rk"].includes(role)&&ev.alur==="disetujui"&&<PersonilBanner ev={ev} role={role} user={user} setPenugasanEv={setPenugasanEv} setEvaluasiEv={setEvaluasiEv}/>}
       <div onClick={()=>setExp(exp?null:ev.id)} style={{padding:"14px",cursor:"pointer",userSelect:"none"}}>
         <div style={{display:"flex",alignItems:"flex-start",gap:11}}>
           {/* Date badge */}
@@ -5723,6 +5661,80 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
   </div>;
 
   // ==================== EXPANDED DETAIL ====================
+  // ── PersonilBanner component ──
+  function PersonilBanner({ev,role,user,setPenugasanEv,setEvaluasiEv}){
+    const all=loadUsers();
+    const pLabels=(ev.personil||[]).map(un=>{const nm=all.find(u=>u.username===un)?.nama||un;return{nm,isMe:un===user.username};});
+    const isAssigned=(ev.personil||[]).includes(user.username);
+    const evTime=new Date(ev.tanggal+"T"+ev.jam);
+    const hoursLeft=(evTime-new Date())/(1000*60*60);
+    const urgent=hoursLeft>0&&hoursLeft<=12&&(!ev.personil||ev.personil.length===0);
+    const showNames=pLabels.length>0;
+    const sudahEval=!!(ev.evaluasi||{})[user.username]?.submitted;
+    const sudahLewat=new Date()>evTime;
+    return <div style={{background:isAssigned?"#F0FDF4":urgent?"#FFF7ED":showNames?"#F0F9FF":"#F8FAFC",padding:showNames?"6px 14px":"5px 14px",borderBottom:"1px solid "+(isAssigned?"#BBF7D0":urgent?"#FED7AA":showNames?"#BAE6FD":"#E2E8F0"),display:"flex",alignItems:"flex-start",gap:8,flexWrap:"wrap"}}>
+      <span style={{fontSize:12,flexShrink:0,marginTop:1}}>{urgent?"⚠️":showNames?"👥":"○"}</span>
+      <div style={{flex:1,display:"flex",flexWrap:"wrap",gap:4,alignItems:"center",minWidth:0}}>
+        {showNames
+          ?pLabels.map((p,i)=>(
+              <span key={i} style={{display:"inline-flex",alignItems:"center",gap:3,background:p.isMe?"#D1FAE5":"#E0F2FE",color:p.isMe?"#065F46":"#0369A1",borderRadius:5,padding:"2px 7px",fontSize:10,fontWeight:700,whiteSpace:"nowrap"}}>
+                {p.isMe&&<span style={{fontSize:9}}>🎯</span>}{p.nm}{p.isMe?" (Anda)":""}
+              </span>))
+          :<span style={{fontSize:11,fontWeight:700,color:urgent?"#9A3412":"#94A3B8"}}>{urgent?"Belum ada personil!":"Belum ada penugasan"}</span>
+        }
+      </div>
+      {["kasubbag_protokol","kasubbag_komdokpim"].includes(role)&&<button onClick={e=>{e.stopPropagation();setPenugasanEv(ev);}} style={{flexShrink:0,padding:"2px 8px",borderRadius:5,border:"1px solid #CBD5E1",background:"white",color:"#334155",cursor:"pointer",fontSize:10,fontWeight:700}}>{(!ev.personil||ev.personil.length===0)?"+ Tugaskan":"Edit"}</button>}
+      {isAssigned&&sudahLewat&&<button onClick={e=>{e.stopPropagation();setEvaluasiEv(ev);}} style={{flexShrink:0,padding:"2px 8px",borderRadius:5,border:"1px solid "+(sudahEval?"#16A34A":"#7C3AED"),background:"white",color:sudahEval?"#16A34A":"#7C3AED",cursor:"pointer",fontSize:10,fontWeight:700}}>{sudahEval?"✅ Evaluasi":"📝 Evaluasi"}</button>}
+    </div>;
+  }
+
+  // ── WKKehadiran component (Wali Kota & Ajudan WK) ──
+  function WKKehadiran({ev,upd,showT,setDelegTarget,role}){
+    const isAjudan=role==="ajudan_walikota";
+    return <div>
+      {isAjudan&&<div style={{background:"#FFF8E1",border:"1.5px solid #FBC02D",borderRadius:9,padding:"8px 12px",marginBottom:12,display:"flex",gap:8,alignItems:"flex-start"}}>
+        <span style={{fontSize:16,flexShrink:0}}>⚠️</span>
+        <div style={{fontSize:11,color:"#7C4D00",lineHeight:1.5}}><strong>Perhatian Ajudan:</strong> Pastikan Anda telah mengkonfirmasi langsung ke Bapak/Ibu Wali Kota sebelum mengisi disposisi ini. Semua input yang Anda buat akan tercatat sebagai <em>"diisi oleh Ajudan"</em>.</div>
+      </div>}
+      {ev.statusWK&&ev.statusWK_by==="ajudan"&&!isAjudan&&<div style={{background:"#FFF3E0",border:"1px solid #FFB74D",borderRadius:7,padding:"6px 10px",marginBottom:8,fontSize:11,color:"#E65100"}}>ℹ️ Status kehadiran ini diisi oleh Ajudan — harap konfirmasi langsung ke Bapak Wali Kota.</div>}
+      <div style={{fontSize:12,fontWeight:700,color:NAVY,marginBottom:7}}>{isAjudan?"Input Kehadiran Wali Kota":"Konfirmasi Kehadiran"}</div>
+      <div style={{display:"flex",gap:8,marginBottom:10}}>{[{s:"hadir",l:"✓ Hadir",c:GREEN},{s:"tidak_hadir",l:"✗ Tidak Hadir",c:"#991b1b"}].map(({s,l,c})=><button key={s} onClick={()=>{upd(ev.id,{statusWK:s,delegasiKeWWK:false,perwakilanWK:"",statusWK_by:isAjudan?"ajudan":"walikota"});showT(isAjudan?"Kehadiran Wali Kota berhasil diinput":"Status diperbarui");}} style={{flex:1,padding:"12px",borderRadius:10,cursor:"pointer",fontWeight:800,fontSize:13,border:"1.5px solid "+c,background:ev.statusWK===s?c:"white",color:ev.statusWK===s?"white":c}}>{l}</button>)}</div>
+      <div style={{background:"#f0fdf4",borderRadius:11,padding:12,border:"1.5px solid #bbf7d0",marginBottom:10}}>
+        <div style={{fontSize:12,fontWeight:700,color:GREEN,marginBottom:7}}>Disposisi</div>
+        <button onClick={()=>{upd(ev.id,{statusWK:"diwakilkan",delegasiKeWWK:true,perwakilanWK:"",statusWK_by:isAjudan?"ajudan":"walikota"});showT(isAjudan?"Delegasi ke WWK diinput oleh Ajudan":"Didelegasi ke Wakil Wali Kota");}} style={{width:"100%",padding:"10px",borderRadius:9,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,marginBottom:6,background:ev.delegasiKeWWK?GREEN:"#d1fae5",color:ev.delegasiKeWWK?"white":GREEN}}>{ev.delegasiKeWWK?"✓ Didelegasi ke Wakil Wali Kota":"Delegasi ke Wakil Wali Kota"}</button>
+        {ev.delegasiKeWWK&&<button onClick={()=>{upd(ev.id,{statusWK:null,delegasiKeWWK:false,perwakilanWK:""});showT("Delegasi dibatalkan","warn");}} style={{width:"100%",padding:"8px",borderRadius:9,border:"1.5px solid #fca5a5",background:"white",color:"#e11d48",cursor:"pointer",fontSize:12,fontWeight:700,marginBottom:6}}>Batalkan Delegasi ke WWK</button>}
+        <button onClick={()=>setDelegTarget({id:ev.id,side:"wk"})} style={{width:"100%",padding:"9px",borderRadius:9,border:"1.5px solid #94a3b8",background:"white",color:"#334155",cursor:"pointer",fontSize:12}}>Wakilkan ke Pejabat Lain</button>
+        {ev.statusWK==="diwakilkan"&&ev.perwakilanWK&&<><div style={{marginTop:6,padding:"5px 10px",background:"#fef3c7",borderRadius:7,fontSize:12,color:"#92400e",fontWeight:600}}>Diwakilkan ke: {ev.perwakilanWK}</div><button onClick={()=>{upd(ev.id,{statusWK:null,perwakilanWK:"",delegasiKeWWK:false});showT("Disposisi dibatalkan","warn");}} style={{marginTop:5,width:"100%",padding:"7px",borderRadius:8,border:"1.5px solid #fca5a5",background:"white",color:"#e11d48",cursor:"pointer",fontSize:11,fontWeight:700}}>Batalkan Disposisi</button></>}
+      </div>
+      {!isAjudan&&<div><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Catatan untuk Tim</label>
+        <CatatanInput evId={ev.id} initial={ev.catatanPimpinan} onSave={v=>{upd(ev.id,{catatanPimpinan:v});showT("Catatan disimpan");}} btnColor={NAVY} placeholder="Arahan atau permintaan khusus..."/>
+      </div>}
+    </div>;
+  }
+
+  // ── WWKKehadiran component (Wakil Wali Kota & Ajudan WWK) ──
+  function WWKKehadiran({ev,upd,showT,setDelegTarget,role}){
+    const isAjudan=role==="ajudan_wakilwalikota";
+    return <div style={{marginTop:isAjudan?12:0}}>
+      {isAjudan&&<div style={{background:"#FFF8E1",border:"1.5px solid #FBC02D",borderRadius:9,padding:"8px 12px",marginBottom:12,display:"flex",gap:8,alignItems:"flex-start"}}>
+        <span style={{fontSize:16,flexShrink:0}}>⚠️</span>
+        <div style={{fontSize:11,color:"#7C4D00",lineHeight:1.5}}><strong>Perhatian Ajudan:</strong> Pastikan Anda telah mengkonfirmasi ke Bapak/Ibu Wakil Wali Kota. Input ini akan tercatat <em>"diisi oleh Ajudan"</em>.</div>
+      </div>}
+      {ev.statusWWK&&ev.statusWWK_by==="ajudan"&&!isAjudan&&<div style={{background:"#FFF3E0",border:"1px solid #FFB74D",borderRadius:7,padding:"6px 10px",marginBottom:8,fontSize:11,color:"#E65100"}}>ℹ️ Status kehadiran ini diisi oleh Ajudan — harap konfirmasi ke Ibu/Bapak Wakil Wali Kota.</div>}
+      <div style={{fontSize:12,fontWeight:700,color:GREEN,marginBottom:7}}>{isAjudan?"Input Kehadiran Wakil Wali Kota":"Konfirmasi Kehadiran"}</div>
+      {ev.delegasiKeWWK&&role==="wakilwalikota"&&<button onClick={()=>{upd(ev.id,{statusWK:null,delegasiKeWWK:false,perwakilanWK:"",statusWWK:"",statusWWK_by:""});showT("Disposisi dari WK dibatalkan","warn");}} style={{width:"100%",padding:"8px",borderRadius:9,border:"1.5px dashed #fca5a5",background:"white",color:"#dc2626",cursor:"pointer",fontSize:12,fontWeight:700,marginBottom:8}}>↩ Batalkan Disposisi dari Wali Kota</button>}
+      <div style={{display:"flex",gap:8,marginBottom:10}}>{[{s:"hadir",l:"✓ Hadir",c:GREEN},{s:"tidak_hadir",l:"✗ Tidak Hadir",c:"#991b1b"}].map(({s,l,c})=><button key={s} onClick={()=>{upd(ev.id,{statusWWK:s,statusWWK_by:isAjudan?"ajudan":"wakilwalikota"});showT(isAjudan?"Kehadiran Wakil Wali Kota diinput":"Status diperbarui");}} style={{flex:1,padding:"12px",borderRadius:10,cursor:"pointer",fontWeight:800,fontSize:13,border:"1.5px solid "+c,background:ev.statusWWK===s?c:"white",color:ev.statusWWK===s?"white":c}}>{l}</button>)}</div>
+      <div style={{background:"#f8fafc",borderRadius:10,padding:11,border:"1.5px solid #e2e8f0",marginBottom:10}}>
+        <div style={{fontSize:12,color:"#64748b",fontWeight:700,marginBottom:6}}>Wakilkan ke Pejabat Lain</div>
+        <button onClick={()=>setDelegTarget({id:ev.id,side:"wwk"})} style={{width:"100%",padding:"10px",borderRadius:9,cursor:"pointer",fontSize:12,fontWeight:ev.statusWWK==="diwakilkan"?700:500,border:"1.5px solid "+(ev.statusWWK==="diwakilkan"?NAVY:"#94a3b8"),background:ev.statusWWK==="diwakilkan"?"#EBF0FA":"white",color:ev.statusWWK==="diwakilkan"?NAVY:"#334155"}}>{ev.statusWWK==="diwakilkan"&&ev.perwakilanWWK?"Diwakilkan ke: "+ev.perwakilanWWK:"Pilih Pejabat Perwakilan"}</button>
+        {ev.statusWWK==="diwakilkan"&&ev.perwakilanWWK&&<button onClick={()=>{upd(ev.id,{statusWWK:null,perwakilanWWK:""});showT("Disposisi dibatalkan","warn");}} style={{marginTop:5,width:"100%",padding:"7px",borderRadius:8,border:"1.5px solid #fca5a5",background:"white",color:"#e11d48",cursor:"pointer",fontSize:11,fontWeight:700}}>Batalkan Disposisi</button>}
+      </div>
+      {!isAjudan&&<div><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Catatan untuk Tim</label>
+        <CatatanInput evId={ev.id} initial={ev.catatanPimpinan} onSave={v=>{upd(ev.id,{catatanPimpinan:v});showT("Catatan disimpan");}} btnColor={GREEN} placeholder="Arahan..."/>
+      </div>}
+    </div>;
+  }
+
   // ── AdminRK Konfirmasi Kehadiran component ──
   function AdminRKKehadiran({ev,upd,showT,setDelegTarget}){
     const forWK=(ev.untukPimpinan||[]).includes("walikota");
@@ -5993,72 +6005,10 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
       </div>}
 
       {/* WALI KOTA */}
-      {/* WALI KOTA */}
-      {(role==="walikota"||(role==="ajudan_walikota"&&ev.untukPimpinan.includes("walikota")))&&ev.alur==="disetujui"&&ev.untukPimpinan.includes("walikota")&&(()=>{
-        const isAjudan=role==="ajudan";
-        return <div>
-          {isAjudan&&<div style={{background:"#FFF8E1",border:"1.5px solid #FBC02D",borderRadius:9,padding:"8px 12px",marginBottom:12,display:"flex",gap:8,alignItems:"flex-start"}}>
-            <span style={{fontSize:16,flexShrink:0}}>⚠️</span>
-            <div style={{fontSize:11,color:"#7C4D00",lineHeight:1.5}}>
-              <strong>Perhatian Ajudan:</strong> Pastikan Anda telah mengkonfirmasi langsung ke Bapak/Ibu Wali Kota sebelum mengisi disposisi ini. Semua input yang Anda buat akan tercatat sebagai <em>"diisi oleh Ajudan"</em>.
-            </div>
-          </div>}
-          {ev.statusWK&&ev.statusWK_by==="ajudan"&&!isAjudan&&<div style={{background:"#FFF3E0",border:"1px solid #FFB74D",borderRadius:7,padding:"6px 10px",marginBottom:8,fontSize:11,color:"#E65100"}}>
-            ℹ️ Status kehadiran ini diisi oleh Ajudan — harap konfirmasi langsung ke Bapak Wali Kota.
-          </div>}
-          <div style={{fontSize:12,fontWeight:700,color:NAVY,marginBottom:7}}>{isAjudan?"Input Kehadiran Wali Kota":"Konfirmasi Kehadiran"}</div>
-          <div style={{display:"flex",gap:8,marginBottom:10}}>{[{s:"hadir",l:"✓ Hadir",c:GREEN},{s:"tidak_hadir",l:"✗ Tidak Hadir",c:"#991b1b"}].map(({s,l,c})=><button key={s} onClick={()=>{upd(ev.id,{statusWK:s,delegasiKeWWK:false,perwakilanWK:"",statusWK_by:isAjudan?"ajudan":"walikota"});showT(isAjudan?"Kehadiran Wali Kota berhasil diinput":"Status diperbarui");}} style={{flex:1,padding:"12px",borderRadius:10,cursor:"pointer",fontWeight:800,fontSize:13,border:"1.5px solid "+c,background:ev.statusWK===s?c:"white",color:ev.statusWK===s?"white":c}}>{l}</button>)}</div>
-          <div style={{background:"#f0fdf4",borderRadius:11,padding:12,border:"1.5px solid #bbf7d0",marginBottom:10}}>
-            <div style={{fontSize:12,fontWeight:700,color:GREEN,marginBottom:7}}>Disposisi</div>
-            <button onClick={()=>{upd(ev.id,{statusWK:"diwakilkan",delegasiKeWWK:true,perwakilanWK:"",statusWK_by:isAjudan?"ajudan":"walikota"});showT(isAjudan?"Delegasi ke WWK diinput oleh Ajudan":"Didelegasi ke Wakil Wali Kota");}} style={{width:"100%",padding:"10px",borderRadius:9,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,marginBottom:6,background:ev.delegasiKeWWK?GREEN:"#d1fae5",color:ev.delegasiKeWWK?"white":GREEN}}>{ev.delegasiKeWWK?"✓ Didelegasi ke Wakil Wali Kota":"Delegasi ke Wakil Wali Kota"}</button>
-            {ev.delegasiKeWWK&&<button onClick={()=>{upd(ev.id,{statusWK:null,delegasiKeWWK:false,perwakilanWK:""});showT("Delegasi dibatalkan","warn");}} style={{width:"100%",padding:"8px",borderRadius:9,border:"1.5px solid #fca5a5",background:"white",color:"#e11d48",cursor:"pointer",fontSize:12,fontWeight:700,marginBottom:6}}>Batalkan Delegasi ke WWK</button>}
-            <button onClick={()=>setDelegTarget({id:ev.id,side:"wk"})} style={{width:"100%",padding:"9px",borderRadius:9,border:"1.5px solid #94a3b8",background:"white",color:"#334155",cursor:"pointer",fontSize:12}}>Wakilkan ke Pejabat Lain</button>
-            {ev.statusWK==="diwakilkan"&&ev.perwakilanWK&&<><div style={{marginTop:6,padding:"5px 10px",background:"#fef3c7",borderRadius:7,fontSize:12,color:"#92400e",fontWeight:600}}>Diwakilkan ke: {ev.perwakilanWK}</div><button onClick={()=>{upd(ev.id,{statusWK:null,perwakilanWK:"",delegasiKeWWK:false});showT("Disposisi dibatalkan","warn");}} style={{marginTop:5,width:"100%",padding:"7px",borderRadius:8,border:"1.5px solid #fca5a5",background:"white",color:"#e11d48",cursor:"pointer",fontSize:11,fontWeight:700}}>Batalkan Disposisi</button></>}
-          </div>
-          {!isAjudan&&<div><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Catatan untuk Tim</label>
-            <CatatanInput
-              evId={ev.id}
-              initial={ev.catatanPimpinan}
-              onSave={v=>{upd(ev.id,{catatanPimpinan:v});showT("Catatan disimpan");}}
-              btnColor={NAVY}
-              placeholder="Arahan atau permintaan khusus..."
-            />
-          </div>}
-        </div>;
-      })()}
+      {(role==="walikota"||(role==="ajudan_walikota"&&ev.untukPimpinan.includes("walikota")))&&ev.alur==="disetujui"&&ev.untukPimpinan.includes("walikota")&&<WKKehadiran ev={ev} upd={upd} showT={showT} setDelegTarget={setDelegTarget} role={role}/>}
 
       {/* WAKIL WALI KOTA — dan ajudan bisa input kehadiran WWK */}
-      {(role==="wakilwalikota"||(role==="ajudan_wakilwalikota"&&(ev.untukPimpinan.includes("wakilwalikota")||ev.delegasiKeWWK)))&&ev.alur==="disetujui"&&(ev.untukPimpinan.includes("wakilwalikota")||ev.delegasiKeWWK)&&(()=>{
-        const isAjudan=role==="ajudan";
-        return <div style={{marginTop:isAjudan?12:0}}>
-          {isAjudan&&<div style={{background:"#FFF8E1",border:"1.5px solid #FBC02D",borderRadius:9,padding:"8px 12px",marginBottom:12,display:"flex",gap:8,alignItems:"flex-start"}}>
-            <span style={{fontSize:16,flexShrink:0}}>⚠️</span>
-            <div style={{fontSize:11,color:"#7C4D00",lineHeight:1.5}}>
-              <strong>Perhatian Ajudan:</strong> Pastikan Anda telah mengkonfirmasi ke Bapak/Ibu Wakil Wali Kota. Input ini akan tercatat <em>"diisi oleh Ajudan"</em>.
-            </div>
-          </div>}
-          {ev.statusWWK&&ev.statusWWK_by==="ajudan"&&!isAjudan&&<div style={{background:"#FFF3E0",border:"1px solid #FFB74D",borderRadius:7,padding:"6px 10px",marginBottom:8,fontSize:11,color:"#E65100"}}>
-            ℹ️ Status kehadiran ini diisi oleh Ajudan — harap konfirmasi ke Ibu/Bapak Wakil Wali Kota.
-          </div>}
-          <div style={{fontSize:12,fontWeight:700,color:GREEN,marginBottom:7}}>{isAjudan?"Input Kehadiran Wakil Wali Kota":"Konfirmasi Kehadiran"}</div>
-{ev.delegasiKeWWK&&role==="wakilwalikota"&&<button onClick={()=>{upd(ev.id,{statusWK:null,delegasiKeWWK:false,perwakilanWK:"",statusWWK:"",statusWWK_by:""});showT("Disposisi dari WK dibatalkan","warn");}} style={{width:"100%",padding:"8px",borderRadius:9,border:"1.5px dashed #fca5a5",background:"white",color:"#dc2626",cursor:"pointer",fontSize:12,fontWeight:700,marginBottom:8}}>↩ Batalkan Disposisi dari Wali Kota</button>}
-                    <div style={{display:"flex",gap:8,marginBottom:10}}>{[{s:"hadir",l:"✓ Hadir",c:GREEN},{s:"tidak_hadir",l:"✗ Tidak Hadir",c:"#991b1b"}].map(({s,l,c})=><button key={s} onClick={()=>{upd(ev.id,{statusWWK:s,statusWWK_by:isAjudan?"ajudan":"wakilwalikota"});showT(isAjudan?"Kehadiran Wakil Wali Kota diinput":"Status diperbarui");}} style={{flex:1,padding:"12px",borderRadius:10,cursor:"pointer",fontWeight:800,fontSize:13,border:"1.5px solid "+c,background:ev.statusWWK===s?c:"white",color:ev.statusWWK===s?"white":c}}>{l}</button>)}</div>
-          <div style={{background:"#f8fafc",borderRadius:10,padding:11,border:"1.5px solid #e2e8f0",marginBottom:10}}>
-            <div style={{fontSize:12,color:"#64748b",fontWeight:700,marginBottom:6}}>Wakilkan ke Pejabat Lain</div>
-            <button onClick={()=>setDelegTarget({id:ev.id,side:"wwk"})} style={{width:"100%",padding:"10px",borderRadius:9,cursor:"pointer",fontSize:12,fontWeight:ev.statusWWK==="diwakilkan"?700:500,border:"1.5px solid "+(ev.statusWWK==="diwakilkan"?NAVY:"#94a3b8"),background:ev.statusWWK==="diwakilkan"?"#EBF0FA":"white",color:ev.statusWWK==="diwakilkan"?NAVY:"#334155"}}>{ev.statusWWK==="diwakilkan"&&ev.perwakilanWWK?"Diwakilkan ke: "+ev.perwakilanWWK:"Pilih Pejabat Perwakilan"}</button>
-            {ev.statusWWK==="diwakilkan"&&ev.perwakilanWWK&&<button onClick={()=>{upd(ev.id,{statusWWK:null,perwakilanWWK:""});showT("Disposisi dibatalkan","warn");}} style={{marginTop:5,width:"100%",padding:"7px",borderRadius:8,border:"1.5px solid #fca5a5",background:"white",color:"#e11d48",cursor:"pointer",fontSize:11,fontWeight:700}}>Batalkan Disposisi</button>}
-          </div>
-          {!isAjudan&&<div><label style={{display:"block",fontSize:12,color:"#64748b",fontWeight:600,marginBottom:4}}>Catatan untuk Tim</label>
-            <CatatanInput
-              evId={ev.id}
-              initial={ev.catatanPimpinan}
-              onSave={v=>{upd(ev.id,{catatanPimpinan:v});showT("Catatan disimpan");}}
-              btnColor={GREEN}
-              placeholder="Arahan..."
-            />
-          </div>}
-        </div>;
-      })()}
+      {(role==="wakilwalikota"||(role==="ajudan_wakilwalikota"&&(ev.untukPimpinan.includes("wakilwalikota")||ev.delegasiKeWWK)))&&ev.alur==="disetujui"&&(ev.untukPimpinan.includes("wakilwalikota")||ev.delegasiKeWWK)&&<WWKKehadiran ev={ev} upd={upd} showT={showT} setDelegTarget={setDelegTarget} role={role}/>}
     </div>;
   }
 
