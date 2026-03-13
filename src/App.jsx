@@ -36,6 +36,38 @@ function touchActivity(){_lastActivity=Date.now();}
 function sanitize(str){if(typeof str!=="string")return str;return str.replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#x27;");}
 
 // ═══════════════════════════════════════════════════════
+// UX: Global Toast Bridge (agar komponen tanpa prop showT bisa tampilkan notifikasi)
+// ═══════════════════════════════════════════════════════
+const _toast={fn:null};
+function globalToast(msg,type="error"){if(_toast.fn)_toast.fn(msg,type);else console.warn("[Toast]",msg);}
+
+// ═══════════════════════════════════════════════════════
+// UX: Waktu Relatif ("Hari Ini", "Besok", "3 hari lagi")
+// ═══════════════════════════════════════════════════════
+function relativeDate(dateStr){
+  if(!dateStr)return"";
+  const now=new Date();const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const target=new Date(dateStr+"T00:00:00");
+  const diffDays=Math.round((target-today)/(1000*60*60*24));
+  if(diffDays===0)return"Hari Ini";if(diffDays===1)return"Besok";if(diffDays===-1)return"Kemarin";
+  if(diffDays>1&&diffDays<=7)return diffDays+" hari lagi";if(diffDays>7&&diffDays<=14)return"Minggu depan";
+  if(diffDays<-1&&diffDays>=-7)return Math.abs(diffDays)+" hari lalu";if(diffDays<-7&&diffDays>=-14)return"Minggu lalu";
+  return"";
+}
+
+// ═══════════════════════════════════════════════════════
+// UX: Haptic Feedback (getaran ringan di mobile)
+// ═══════════════════════════════════════════════════════
+function haptic(ms=50){try{navigator?.vibrate?.(ms);}catch{}}
+
+// ═══════════════════════════════════════════════════════
+// UX: Undo Toast (batal aksi destruktif selama 5 detik)
+// ═══════════════════════════════════════════════════════
+let _undoTimer=null;let _undoCallback=null;
+function clearUndo(){if(_undoTimer){clearTimeout(_undoTimer);_undoTimer=null;}_undoCallback=null;}
+function triggerUndo(){if(_undoCallback){_undoCallback();clearUndo();}}
+
+// ═══════════════════════════════════════════════════════
 // UX: Password Strength Meter
 // ═══════════════════════════════════════════════════════
 function getPasswordStrength(pw){
@@ -142,7 +174,7 @@ function RegisterModal({onClose, onSuccess}){
     const reg={...form,username:form.username.toLowerCase().trim(),password:hash,id:Date.now(),tanggal:new Date().toISOString()};
     savePendingRegs([...pending,reg]);
     // Simpan juga ke Supabase agar Kabag bisa lihat dari device lain
-    dbSavePendingReg(reg).catch(()=>{});
+    dbSavePendingReg(reg).catch(e=>console.warn("Sync:",e?.message||e));
     window.dispatchEvent(new StorageEvent("storage",{key:"pending_registrations"}));
     setSent(true);
   };
@@ -493,7 +525,7 @@ async function initUsers(){
       if(hasPlain){
         const migrated=await migratePasswords(rows);
         _usersCache=migrated;
-        await Promise.all(migrated.map(u=>dbUpsertUser(u))).catch(()=>{});
+        await Promise.all(migrated.map(u=>dbUpsertUser(u))).catch(e=>console.warn("Sync:",e?.message||e));
         try{localStorage.setItem("jp_users",JSON.stringify(migrated));}catch{}
       }
       return _usersCache;
@@ -587,7 +619,7 @@ function Toast({msg,type}){
   const bg=type==="error"?"rgba(220,38,38,0.96)":type==="warn"?"rgba(217,119,6,0.96)":"rgba(10,22,40,0.95)";
   const icon=type==="error"?"⚠️":type==="warn"?"⚡":"✓";
   const dur=type==="error"?"5s":type==="warn"?"4s":"3s";
-  return <div style={{position:"fixed",top:"env(safe-area-inset-top,20px)",marginTop:20,left:"50%",transform:"translateX(-50%)",zIndex:9999,padding:"12px 20px",borderRadius:16,background:bg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",color:"white",boxShadow:"0 8px 32px rgba(0,0,0,0.28)",fontSize:13,fontWeight:600,whiteSpace:"pre-wrap",display:"flex",alignItems:"center",gap:8,animation:"toastIn 0.35s cubic-bezier(0.34,1.56,0.64,1)",maxWidth:"calc(100vw - 40px)",textAlign:"center",lineHeight:1.4,overflow:"hidden"}}>
+  return <div role="alert" aria-live="assertive" style={{position:"fixed",top:"env(safe-area-inset-top,20px)",marginTop:20,left:"50%",transform:"translateX(-50%)",zIndex:9999,padding:"12px 20px",borderRadius:16,background:bg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",color:"white",boxShadow:"0 8px 32px rgba(0,0,0,0.28)",fontSize:13,fontWeight:600,whiteSpace:"pre-wrap",display:"flex",alignItems:"center",gap:8,animation:"toastIn 0.35s cubic-bezier(0.34,1.56,0.64,1)",maxWidth:"calc(100vw - 40px)",textAlign:"center",lineHeight:1.4,overflow:"hidden"}}>
     <span style={{fontSize:15,flexShrink:0}}>{icon}</span><span style={{flex:1}}>{msg}</span>
     <div style={{position:"absolute",bottom:0,left:12,right:12,height:2,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",background:"rgba(255,255,255,0.35)",borderRadius:2,animation:"toastProgress "+dur+" linear forwards"}}/></div>
   </div>;
@@ -637,8 +669,8 @@ function UndanganBlock({ev,canEdit,onUpload,onRemove}){
   const handleFile=f=>{
     if(!f)return;
     const ok=f.type==="application/pdf"||f.type.startsWith("image/");
-    if(!ok){alert("Hanya PDF atau gambar (JPG/PNG).");return;}
-    if(f.size>15*1024*1024){alert("Maks 15MB.");return;}
+    if(!ok){globalToast("Hanya file PDF atau gambar (JPG/PNG) yang didukung.");return;}
+    if(f.size>15*1024*1024){globalToast("Ukuran file maksimal 15MB.");return;}
     setL(true);onUpload(f,f.name).finally(()=>setL(false));
   };
   const isImg=ev.undanganNama?.match(/\.(jpg|jpeg|png|webp)$/i);
@@ -683,15 +715,15 @@ function SambutanBlock({ev,canUpload,onUploadDocx,onUploadPdf,onRemove}){
     if(!f)return;
     const isDocx=f.type===DOCX_MIME||f.name.toLowerCase().endsWith(".docx");
     const isPdf=f.type===PDF_MIME||f.name.toLowerCase().endsWith(".pdf");
-    if(!isDocx&&!isPdf){alert("Format tidak didukung. Gunakan file .docx atau .pdf.");return;}
-    if(f.size>10*1024*1024){alert("Ukuran file maks 10MB.");return;}
+    if(!isDocx&&!isPdf){globalToast("Format tidak didukung. Gunakan file .docx atau .pdf.");return;}
+    if(f.size>10*1024*1024){globalToast("Ukuran file maksimal 10MB.");return;}
     if(isPdf){
       setStep("processing");setErrMsg("");setProgress("Mengupload PDF...");
       try{await onUploadPdf(f,f.name);setStep("done");setProgress("");}
       catch(e){setStep("error");setErrMsg(e.message||"Gagal upload PDF");}
       return;
     }
-    if(f.size>5*1024*1024){alert("Ukuran file DOCX maks 5MB.");return;}
+    if(f.size>5*1024*1024){globalToast("Ukuran file DOCX maksimal 5MB.");return;}
     setStep("processing");setErrMsg("");
     try{
       setProgress("Membaca dokumen DOCX...");await new Promise(r=>setTimeout(r,300));
@@ -1013,7 +1045,7 @@ function SummaryModal({events,onToggleHide,onClose}){
     <div style={{background:"white",borderRadius:16,width:"100%",maxWidth:500,maxHeight:"88vh",display:"flex",flexDirection:"column"}}>
       <div style={{padding:"16px 20px 12px",borderBottom:"1px solid #f1f5f9",display:"flex",alignItems:"center",gap:10}}>
         <div style={{flex:1}}><div style={{fontSize:16,fontWeight:700,color:NAVY}}>Rekap Agenda WA</div><div style={{fontSize:12,color:"#94A3B8",marginTop:2}}>{pub.length} agenda aktif</div></div>
-        <button onClick={onClose} style={{background:"#f1f5f9",border:"none",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontSize:13}}>&#x2715;</button>
+        <button onClick={onClose} style={{background:"#f1f5f9",border:"none",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontSize:13}}aria-label="Tutup">>&#x2715;</button>#x2715;</button>
       </div>
       <div style={{padding:"12px 20px",borderBottom:"1px solid #f1f5f9",display:"flex",gap:6,flexWrap:"wrap"}}>
         {[{k:"today",l:"Hari Ini"},{k:"tomorrow",l:"Besok"},{k:"range",l:"Rentang"}].map(m=>(
@@ -1454,7 +1486,7 @@ function NotifTab({user,showT}){
     if(!("serviceWorker" in navigator)||!("PushManager" in navigator))return;
     navigator.serviceWorker.ready.then(reg=>
       reg.pushManager.getSubscription().then(sub=>setSubbed(!!sub))
-    ).catch(()=>{});
+    ).catch(e=>console.warn("Sync:",e?.message||e));
   },[]);
 
   const activate=async()=>{
@@ -2026,7 +2058,7 @@ function AdminModal({onClose,showT}){
     showT("Pengguna ditambahkan ✓");
   };
   const doDelete=async un=>{
-    setConfirmDlg({title:"Hapus Pengguna?",body:"Akun "+un+" akan dihapus permanen.",confirmLabel:"Hapus",confirmColor:"#DC2626",onConfirm:()=>dbDeleteUser(un).then(()=>{initUsers().catch(()=>{});showT("Pengguna dihapus");})});return;
+    setConfirmDlg({title:"Hapus Pengguna?",body:"Akun "+un+" akan dihapus permanen.",confirmLabel:"Hapus",confirmColor:"#DC2626",onConfirm:()=>dbDeleteUser(un).then(()=>{initUsers().catch(e=>console.warn("Sync:",e?.message||e));showT("Pengguna dihapus");})});return;
     const updated=users.filter(u=>u.username!==un);
     save(updated);
     await dbDeleteUser(un).catch(e=>console.warn("dbDeleteUser error:",e));
@@ -2050,7 +2082,7 @@ function AdminModal({onClose,showT}){
     <div style={{background:"white",borderRadius:16,width:"100%",maxWidth:560,maxHeight:"90vh",display:"flex",flexDirection:"column"}}>
       <div style={{padding:"16px 20px 0",borderBottom:"1px solid #f1f5f9",flexShrink:0}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}><div style={{flex:1,fontSize:16,fontWeight:700,color:NAVY}}>Panel Admin</div><button onClick={onClose} style={{background:"#f1f5f9",border:"none",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontSize:13,fontWeight:700,color:"#64748b"}}>Tutup</button></div>
-        <div style={{display:"flex",gap:0,overflowX:"auto"}}>{[{k:"users",l:"Pengguna"},{k:"pendaftaran",l:"Pendaftaran"+(pendRegs.length>0?" ("+pendRegs.length+")":"")},{k:"add",l:"Tambah"},{k:"pw",l:"Reset PW"},{k:"import",l:"Import Excel"}].map(t=><button key={t.k} onClick={()=>{setTabA(t.k);setErr("");}} style={{padding:"9px 14px",border:"none",background:"transparent",color:tabA===t.k?NAVY:t.k==="pendaftaran"&&pendRegs.length>0?"#DC2626":"#94a3b8",fontWeight:tabA===t.k?700:500,fontSize:12,cursor:"pointer",borderBottom:tabA===t.k?"2.5px solid "+NAVY:"2.5px solid transparent",whiteSpace:"nowrap"}}>{t.l}</button>)}</div>
+        <div style={{display:"flex",gap:0,overflowX:"auto"}}>{[{k:"users",l:"Pengguna"},{k:"pendaftaran",l:"Pendaftaran"+(pendRegs.length>0?" ("+pendRegs.length+")":"")},{k:"add",l:"Tambah"},{k:"pw",l:"Reset PW"},{k:"import",l:"Import"},{k:"export",l:"📦 Backup"}].map(t=><button key={t.k} onClick={()=>{setTabA(t.k);setErr("");}} style={{padding:"9px 14px",border:"none",background:"transparent",color:tabA===t.k?NAVY:t.k==="pendaftaran"&&pendRegs.length>0?"#DC2626":"#94a3b8",fontWeight:tabA===t.k?700:500,fontSize:12,cursor:"pointer",borderBottom:tabA===t.k?"2.5px solid "+NAVY:"2.5px solid transparent",whiteSpace:"nowrap"}}>{t.l}</button>)}</div>
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px 20px"}}>
         {err&&<div style={{background:"#fee2e2",borderRadius:8,padding:"9px 12px",marginBottom:12,fontSize:13,color:"#991b1b"}}>{err}</div>}
@@ -2088,19 +2120,51 @@ function AdminModal({onClose,showT}){
                 <button onClick={()=>{
                   const regs=loadPendingRegs().filter(x=>x.id!==r.id);
                   savePendingRegs(regs);setPendRegs(regs);
-                  dbDeletePendingReg(r.id).catch(()=>{});
+                  dbDeletePendingReg(r.id).catch(e=>console.warn("Sync:",e?.message||e));
                   const newU={username:r.username,password:r.password,nama:r.nama,jabatan:r.jabatan,role:r.role,noWA:r.noWA||""};
                   const all=loadUsers();saveUsers([...all,newU]);setUsers([...all,newU]);
-                  dbUpsertUser(newU).catch(()=>{});
+                  dbUpsertUser(newU).catch(e=>console.warn("Sync:",e?.message||e));
                   showT("Akun "+r.username+" diaktifkan ✓");
                 }} style={{padding:"6px 12px",borderRadius:8,border:"none",background:"#10b981",color:"white",cursor:"pointer",fontSize:11,fontWeight:700}}>✓ Setujui</button>
-                <button onClick={()=>{const regs=loadPendingRegs().filter(x=>x.id!==r.id);savePendingRegs(regs);setPendRegs(regs);dbDeletePendingReg(r.id).catch(()=>{});showT("Permohonan ditolak","warn");}} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid #fca5a5",background:"white",color:"#ef4444",cursor:"pointer",fontSize:11,fontWeight:700}}>✕ Tolak</button>
+                <button onClick={()=>{const regs=loadPendingRegs().filter(x=>x.id!==r.id);savePendingRegs(regs);setPendRegs(regs);dbDeletePendingReg(r.id).catch(e=>console.warn("Sync:",e?.message||e));showT("Permohonan ditolak","warn");}} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid #fca5a5",background:"white",color:"#ef4444",cursor:"pointer",fontSize:11,fontWeight:700}}>✕ Tolak</button>
               </div>
             </div>
           </div>)
         }</div>}
         {tabA==="pw"&&<div style={{background:"#fef3c7",borderRadius:10,padding:"12px 14px",fontSize:13,color:"#92400e"}}>Untuk reset password pengguna, gunakan tab Pengguna lalu klik Edit pada akun yang bersangkutan.</div>}
         {tabA==="import"&&<ImportUsersTab users={users} save={save} showT={showT}/>}
+        {tabA==="export"&&<div>
+          <div style={{background:"#EFF6FF",borderRadius:10,padding:"12px 14px",marginBottom:14,border:"1px solid #BFDBFE",fontSize:12,color:"#1D4ED8",lineHeight:1.7}}>
+            📦 Backup data pengguna ke file JSON. Gunakan untuk cadangan atau migrasi ke sistem lain.
+          </div>
+          <button onClick={()=>{
+            const data={exportDate:new Date().toISOString(),users:users.map(u=>({username:u.username,nama:u.nama,jabatan:u.jabatan,role:u.role,noWA:u.noWA||""})),totalUsers:users.length};
+            const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+            const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="prokopim-users-backup-"+new Date().toISOString().slice(0,10)+".json";a.click();URL.revokeObjectURL(url);
+            showT("Backup pengguna berhasil diunduh ✓");
+          }} style={{width:"100%",padding:"14px",borderRadius:12,border:"none",background:NAVY,color:"white",cursor:"pointer",fontSize:14,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+            <span style={{fontSize:18}}>👥</span> Export Data Pengguna (JSON)
+          </button>
+          <button onClick={async()=>{
+            try{
+              let evts=[];
+              if(SUPA_OK){const rows=await dbLoadAll();if(rows)evts=rows;}
+              else{try{evts=JSON.parse(localStorage.getItem("jp_events")||"[]");}catch{}}
+              const data={exportDate:new Date().toISOString(),events:evts,totalEvents:evts.length};
+              const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+              const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="prokopim-jadwal-backup-"+new Date().toISOString().slice(0,10)+".json";a.click();URL.revokeObjectURL(url);
+              showT("Backup jadwal berhasil diunduh ("+evts.length+" jadwal) ✓");
+            }catch(e){showT("Gagal mengekspor: "+e.message,"error");}
+          }} style={{width:"100%",padding:"14px",borderRadius:12,border:"1.5px solid "+NAVY,background:"white",color:NAVY,cursor:"pointer",fontSize:14,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+            <span style={{fontSize:18}}>📅</span> Export Data Jadwal (JSON)
+          </button>
+          <div style={{marginTop:14,padding:"10px 13px",background:"#f8fafc",borderRadius:9,border:"1px solid #e2e8f0",fontSize:11,color:"#64748b",lineHeight:1.8}}>
+            <div style={{fontWeight:700,color:"#475569",marginBottom:4}}>Catatan:</div>
+            <div>• Password tidak disertakan dalam export pengguna</div>
+            <div>• File backup bisa dibuka di text editor atau diolah di Excel</div>
+            <div>• Simpan file backup di tempat aman secara berkala</div>
+          </div>
+        </div>}
       </div>
     </div>
   </div>;
@@ -2113,8 +2177,8 @@ function FormUndanganUpload({onFile,compact,label}){
   const[load,setLoad]=useState(false);
   const handle=f=>{
     if(!f)return;
-    if(!f.type.match(/pdf|image/)){alert("Hanya PDF atau gambar.");return;}
-    if(f.size>15*1024*1024){alert("Maks 15MB.");return;}
+    if(!f.type.match(/pdf|image/)){globalToast("Hanya file PDF atau gambar yang didukung.");return;}
+    if(f.size>15*1024*1024){globalToast("Ukuran file maksimal 15MB.");return;}
     setLoad(true);
     const reader=new FileReader();
     reader.onload=e=>{onFile(f,f.name,e.target.result);setLoad(false);};
@@ -2537,14 +2601,14 @@ function FormView({form,setForm,editId,isMobile,onSubmit,onCancel,onOpenAI,onUnd
             })}
           </div>
         </div>
-        {!editId&&<button type="button" onClick={()=>{if(!step1Valid){alert("Lengkapi: Tanggal, Jam, Nama Acara, dan pilih Pimpinan");return;}setWizStep(2);}}
+        {!editId&&<button type="button" onClick={()=>{if(!step1Valid){globalToast("Lengkapi dulu: Tanggal, Jam, Nama Acara, dan pilih Pimpinan","warn");return;}setWizStep(2);}}
           style={{width:"100%",padding:"14px",borderRadius:12,border:"none",
             background:step1Valid?"linear-gradient(135deg,"+NAVY2+",#1E3254)":"#E2E8F0",
             color:step1Valid?"white":"#94A3B8",cursor:step1Valid?"pointer":"default",
             fontSize:14,fontWeight:800,marginBottom:8,transition:"all 0.2s"}}>
           Lanjut ke Detail →
         </button>}
-        {!editId&&<button type="button" onClick={()=>{if(!step1Valid){alert("Lengkapi dulu field wajib");return;}onSubmit();}}
+        {!editId&&<button type="button" onClick={()=>{if(!step1Valid){globalToast("Lengkapi dulu field wajib sebelum menyimpan","warn");return;}onSubmit();}}
           style={{width:"100%",padding:"11px",borderRadius:12,border:"1.5px dashed #CBD5E1",
             background:"white",color:"#64748B",cursor:"pointer",fontSize:13,fontWeight:600}}>
           Simpan Draft Cepat (tanpa detail)
@@ -3171,6 +3235,36 @@ export default function App(){
 
   useEffect(()=>{setSearchQ("");setShowSearch(false);},[tab]);
 
+  // ── UX: Keyboard Shortcuts ──
+  useEffect(()=>{
+    const onKey=e=>{
+      // Escape → tutup modal/drawer teratas
+      if(e.key==="Escape"){
+        if(confirmDlg){setConfirmDlg(null);return;}
+        if(showMobMenu){setMobMenu(false);return;}
+        if(showProfile){setShowProfile(false);return;}
+        if(showAdmin){setShowAdmin(false);return;}
+        if(showReport){setShowReport(false);return;}
+        if(showSummary){setShowSummary(false);return;}
+        if(showBroadcast){setShowBroadcast(false);return;}
+        if(showLaporan){setShowLaporan(false);return;}
+        if(showAI){setShowAI(false);return;}
+        if(showForgot){setShowForgot(false);return;}
+        if(showRegister){setShowRegister(false);return;}
+        if(penugasanEv){setPenugasanEv(null);return;}
+        if(evaluasiEv){setEvaluasiEv(null);return;}
+        if(showNotifCenter){setShowNotifCenter(false);return;}
+        if(showSearch){setShowSearch(false);setSearchQ("");return;}
+      }
+      // Ctrl+K atau / → buka search (jika tidak sedang mengetik di input)
+      if((e.key==="k"&&(e.ctrlKey||e.metaKey))||(e.key==="/"&&!["INPUT","TEXTAREA","SELECT"].includes(document.activeElement?.tagName))){
+        e.preventDefault();setShowSearch(true);
+      }
+    };
+    window.addEventListener("keydown",onKey);
+    return()=>window.removeEventListener("keydown",onKey);
+  },[confirmDlg,showMobMenu,showProfile,showAdmin,showReport,showSummary,showBroadcast,showLaporan,showAI,showForgot,showRegister,penugasanEv,evaluasiEv,showNotifCenter,showSearch]);
+
   // ── KEAMANAN: Session Timeout Watcher (12 jam) ──
   useEffect(()=>{
     if(!user)return;
@@ -3249,13 +3343,14 @@ export default function App(){
     return ()=>clearInterval(interval);
   },[user]);
 
-  const showT=(msg,type="ok")=>{setToast({msg,type});setTimeout(()=>setToast(null),type==="error"?5000:type==="warn"?4000:3000);};
+  const showT=(msg,type="ok")=>{if(type==="ok")haptic(40);else if(type==="warn")haptic(80);else if(type==="error")haptic([50,30,50]);setToast({msg,type});setTimeout(()=>setToast(null),type==="error"?5000:type==="warn"?4000:3000);};
+  _toast.fn=showT; // bridge for components without showT prop
   const updAndSync=useCallback((id,patch)=>{setEvents(p=>{const next=p.map(e=>e.id===id?{...e,...patch}:e);const ev=next.find(e=>e.id===id);if(ev)dbUpsert(ev).catch(console.error);return next;});},[]);
   const askConfirm=(title,body,onConfirm,confirmLabel="Ya, Lanjutkan",confirmColor="#DC2626")=>{
     setConfirmDlg({title,body,onConfirm,confirmLabel,confirmColor});
   };
 
-  const deleteAndSync=useCallback((id)=>{setEvents(p=>{const ev=p.find(e=>e.id===id);if(ev?.sambutanFile&&!ev.sambutanFile.startsWith("data:"))storageDelete("sambutan",ev.sambutanFile).catch(()=>{});if(ev?.undanganFile&&!ev.undanganFile.startsWith("data:"))storageDelete("undangan",ev.undanganFile).catch(()=>{});dbDelete(id).catch(console.error);return p.filter(e=>e.id!==id);});},[]);
+  const deleteAndSync=useCallback((id)=>{setEvents(p=>{const ev=p.find(e=>e.id===id);if(ev?.sambutanFile&&!ev.sambutanFile.startsWith("data:"))storageDelete("sambutan",ev.sambutanFile).catch(e=>console.warn("Sync:",e?.message||e));if(ev?.undanganFile&&!ev.undanganFile.startsWith("data:"))storageDelete("undangan",ev.undanganFile).catch(e=>console.warn("Sync:",e?.message||e));dbDelete(id).catch(console.error);return p.filter(e=>e.id!==id);});},[]);
   const upd=(id,patch)=>updAndSync(id,patch);
 
   // ── DOCX → PDF via /api/sambutan ──
@@ -3922,7 +4017,7 @@ const TH={
         {pendingList.length>0&&<button onClick={goToPending} className="btn-ios" style={{background:"#EF4444",color:"white",borderRadius:20,padding:"4px 11px",fontSize:11,fontWeight:800,border:"none",cursor:"pointer",flexShrink:0,boxShadow:"0 2px 10px rgba(239,68,68,0.5)",display:"flex",alignItems:"center",gap:5}}>
           <span style={{background:"rgba(255,255,255,0.25)",borderRadius:"50%",width:16,height:16,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:900}}>{pendingList.length}</span>Pending
         </button>}
-        <button onClick={()=>setShowNotifCenter(true)} style={{position:"relative",width:32,height:32,borderRadius:9,border:"1px solid rgba(255,255,255,0.2)",background:"rgba(255,255,255,0.1)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>
+        <button aria-label="Notifikasi" onClick={()=>setShowNotifCenter(true)} style={{position:"relative",width:32,height:32,borderRadius:9,border:"1px solid rgba(255,255,255,0.2)",background:"rgba(255,255,255,0.1)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>
           🔔
           {notifPenugasan.length>0&&<span style={{position:"absolute",top:-3,right:-3,background:"#EF4444",color:"white",borderRadius:"50%",width:14,height:14,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:900}}>{notifPenugasan.length}</span>}
         </button>
@@ -4257,7 +4352,7 @@ function ConfirmModal({title, body, confirmLabel="Ya, Lanjutkan", confirmColor="
   return (
     <div style={{position:"fixed",inset:0,zIndex:9800,display:"flex",alignItems:"center",
       justifyContent:"center",background:"rgba(0,0,0,0.5)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",padding:16,animation:"fadeIn 0.2s ease"}} onClick={onCancel}>
-      <div onClick={e=>e.stopPropagation()}
+      <div role="dialog" aria-modal="true" aria-labelledby="confirm-title" onClick={e=>e.stopPropagation()}
         style={{background:"white",borderRadius:20,padding:"28px 24px",maxWidth:380,width:"100%",
           boxShadow:"0 24px 60px rgba(0,0,0,0.25)",animation:"up 0.25s cubic-bezier(0.34,1.3,0.64,1)"}}>
         <div style={{width:56,height:56,borderRadius:16,background:confirmColor==="#DC2626"?"#FEF2F2":"#FFFBEB",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}>
@@ -5510,7 +5605,7 @@ function KasubbagDashboard({events, user, upd, showT, askConfirm, isMobile, onPe
             if(tUser?.noWA){
               const sby=role==="kasubbag_protokol"?"Kasubbag Protokol":"Kasubbag Komdokpim";
               const pesan="\u274C *Pencabutan Penugasan*\n\nYth. "+cabutTarget.nama+",\n\nPenugasan Anda pada kegiatan berikut telah dicabut:\n\n\uD83D\uDCCC *"+ev.namaAcara+"*\n\uD83D\uDCC5 "+ev.tanggal+"\n\u23F0 "+ev.jam+" WITA"+(ev.lokasi?"\n\uD83D\uDCCD "+ev.lokasi:"")+"\n\n\uD83D\uDCDD Alasan: "+alasanCabut+"\n\nJika ada pertanyaan silakan hubungi "+sby+".\n\n_Prokopim Kota Tarakan_\n_prokopim.tarakankota.go.id_";
-              fetch("/api/whatsapp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({event:"broadcast",pesanCustom:pesan,target:tUser.noWA})}).catch(()=>{});
+              fetch("/api/whatsapp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({event:"broadcast",pesanCustom:pesan,target:tUser.noWA})}).catch(e=>console.warn("Sync:",e?.message||e));
             }
             showT("Penugasan "+cabutTarget.nama+" dicabut & WA terkirim","warn");
             setCabutTarget(null);setAlasanCabut("");
@@ -6003,7 +6098,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
               <JenisBadge j={ev.jenisKegiatan}/><StatusPill alur={ev.alur} hapus={ev.alurHapus}/>
               {isPast&&<span style={{fontSize:9,background:"#E2E8F0",color:"#64748B",borderRadius:4,padding:"1px 5px",fontWeight:700,letterSpacing:0.3}}>SELESAI</span>}
               {isPending&&<span style={{fontSize:9,background:"#FEF3C7",color:"#92400E",borderRadius:4,padding:"1px 5px",fontWeight:700,letterSpacing:0.3}}>DIPROSES</span>}
-              {isUpcoming&&!isToday&&<span style={{fontSize:9,background:"#EFF6FF",color:"#1D4ED8",borderRadius:4,padding:"1px 5px",fontWeight:700,letterSpacing:0.3}}>AKAN DATANG</span>}
+              {isUpcoming&&!isToday&&<span style={{fontSize:9,background:"#EFF6FF",color:"#1D4ED8",borderRadius:4,padding:"1px 5px",fontWeight:700,letterSpacing:0.3}}>{relativeDate(ev.tanggal)||"AKAN DATANG"}</span>}
               {isToday&&isUpcoming&&<span style={{fontSize:9,background:"linear-gradient(90deg,#0A1628,#1B4080)",color:"#C9A84C",borderRadius:4,padding:"1px 5px",fontWeight:700,letterSpacing:0.3}}>HARI INI</span>}
               {ev.untukPimpinan.includes("walikota")&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:10,background:"rgba(10,22,40,0.07)",color:NAVY,fontWeight:700}}>WK{ev.besertaIstriWK?" + Istri":""}</span>}
               {(ev.untukPimpinan.includes("wakilwalikota")||ev.delegasiKeWWK)&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:10,background:"#ECFDF5",color:GREEN,fontWeight:700}}>{ev.delegasiKeWWK?"→WWK":"WWK"}{ev.besertaIstriWWK?" + Istri":""}</span>}
@@ -6032,7 +6127,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
         {evList.map(ev=>{
           const exp=expandedId===ev.id;const hariEv=getHari(ev.tanggal);const isToday=ev.tanggal===todayStr();
           return <><tr key={ev.id} id={"ev-"+ev.id} className="card-row" style={{cursor:"pointer"}} onClick={()=>setExp(exp?null:ev.id)}>
-            <td><div style={{fontWeight:700,fontSize:12,color:isToday?NAVY:"#334155",whiteSpace:"nowrap"}}>{hariEv}, {fmtShort(ev.tanggal)}</div>{isToday&&<span style={{fontSize:10,color:"#2563eb",fontWeight:700}}>Hari ini</span>}</td>
+            <td><div style={{fontWeight:700,fontSize:12,color:isToday?NAVY:"#334155",whiteSpace:"nowrap"}}>{hariEv}, {fmtShort(ev.tanggal)}</div>{(isToday||relativeDate(ev.tanggal))&&<span style={{fontSize:10,color:isToday?"#2563eb":"#64748B",fontWeight:700}}>{isToday?"Hari ini":relativeDate(ev.tanggal)}</span>}</td>
             <td><span style={{fontWeight:700,fontSize:13,color:NAVY}}>{ev.jam}</span></td>
             <td><div style={{fontWeight:700,fontSize:13,color:"#0F2040",lineHeight:1.3}}>{ev.namaAcara}</div>
               <div style={{display:"flex",gap:4,marginTop:3,flexWrap:"wrap"}}>
@@ -6073,7 +6168,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
               <a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(ev.lokasi)} target="_blank" rel="noopener noreferrer" style={{padding:"5px 10px",borderRadius:7,background:"#1a73e8",color:"white",textDecoration:"none",fontSize:11,fontWeight:700,flexShrink:0}}>Maps</a>
             </div>}
             <div style={{marginTop:4}}>
-              <UndanganBlock ev={ev} canEdit={role==="admin_rk"&&ev.alur!=="disetujui"} onUpload={(file,name)=>handleUndanganUpload(ev.id,file,name).then(()=>showT("Berkas undangan diupload"))} onRemove={()=>{if(ev.undanganFile&&!ev.undanganFile.startsWith("data:"))storageDelete("undangan",ev.undanganFile).catch(()=>{});updAndSync(ev.id,{undanganFile:null,undanganNama:""}); }}/>
+              <UndanganBlock ev={ev} canEdit={role==="admin_rk"&&ev.alur!=="disetujui"} onUpload={(file,name)=>handleUndanganUpload(ev.id,file,name).then(()=>showT("Berkas undangan diupload"))} onRemove={()=>{if(ev.undanganFile&&!ev.undanganFile.startsWith("data:"))storageDelete("undangan",ev.undanganFile).catch(e=>console.warn("Sync:",e?.message||e));updAndSync(ev.id,{undanganFile:null,undanganNama:""}); }}/>
             </div>
           </div>
           <div style={{display:"flex",gap:7,marginTop:8}}>
@@ -6086,7 +6181,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
           </div>
         </div>
         {ev.jenisKegiatan==="Sambutan"&&<div>
-          <SambutanBlock ev={ev} canUpload={role==="timkom"||role==="kasubbag_komdokpim"} onUploadDocx={(f)=>handleSambutanDocx(ev.id,f,ev)} onUploadPdf={(f,name)=>handleSambutanUpload(ev.id,f,name).then(()=>showT("Naskah sambutan (PDF) diupload"))} onRemove={()=>{if(ev.sambutanFile&&!ev.sambutanFile.startsWith("data:"))storageDelete("sambutan",ev.sambutanFile).catch(()=>{});if(ev.sambutanDocx&&!ev.sambutanDocx.startsWith("data:")&&!ev.sambutanDocx.startsWith("blob:"))storageDelete("sambutan",ev.sambutanDocx).catch(()=>{});updAndSync(ev.id,{sambutanFile:null,sambutanNama:"",sambutanDocx:null,sambutanDocxNama:""});showT("Naskah sambutan dihapus","warn");}}/>
+          <SambutanBlock ev={ev} canUpload={role==="timkom"||role==="kasubbag_komdokpim"} onUploadDocx={(f)=>handleSambutanDocx(ev.id,f,ev)} onUploadPdf={(f,name)=>handleSambutanUpload(ev.id,f,name).then(()=>showT("Naskah sambutan (PDF) diupload"))} onRemove={()=>{if(ev.sambutanFile&&!ev.sambutanFile.startsWith("data:"))storageDelete("sambutan",ev.sambutanFile).catch(e=>console.warn("Sync:",e?.message||e));if(ev.sambutanDocx&&!ev.sambutanDocx.startsWith("data:")&&!ev.sambutanDocx.startsWith("blob:"))storageDelete("sambutan",ev.sambutanDocx).catch(e=>console.warn("Sync:",e?.message||e));updAndSync(ev.id,{sambutanFile:null,sambutanNama:"",sambutanDocx:null,sambutanDocxNama:""});showT("Naskah sambutan dihapus","warn");}}/>
         </div>}
       </div>
 
@@ -6260,7 +6355,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
       {pendingList.length>0&&<button onClick={goToPending} className="btn-ios" style={{padding:"9px 16px",borderRadius:10,border:"none",background:"linear-gradient(135deg,#EF4444,#DC2626)",color:"white",cursor:"pointer",fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:7,boxShadow:"0 4px 14px rgba(220,38,38,0.35)"}}>
         <span style={{background:"rgba(255,255,255,0.25)",borderRadius:"50%",width:20,height:20,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:900}}>{pendingList.length}</span>Pending Approval
       </button>}
-      <button onClick={()=>setShowNotifCenter(true)} style={{position:"relative",width:38,height:38,borderRadius:10,border:"1.5px solid #E2E8F0",background:"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>
+      <button aria-label="Notifikasi" onClick={()=>setShowNotifCenter(true)} style={{position:"relative",width:38,height:38,borderRadius:10,border:"1.5px solid #E2E8F0",background:"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>
         🔔
         {notifPenugasan.length>0&&<span style={{position:"absolute",top:-4,right:-4,background:"#EF4444",color:"white",borderRadius:"50%",width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:900}}>{notifPenugasan.length}</span>}
       </button>
