@@ -465,7 +465,8 @@ function makeICS(ev){
   ];
   return "data:text/calendar;charset=utf8,"+encodeURIComponent(lines.join("\r\n"));
 }
-function useWindowWidth(){const[w,setW]=useState(typeof window!=="undefined"?window.innerWidth:1280);useEffect(()=>{const h=()=>setW(window.innerWidth);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);return w;}
+function useWindowWidth(){const[w,setW]=useState(typeof window!=="undefined"?window.innerWidth:1280);useEffect(()=>{const h=()=>setW(window.innerWidth);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);
+  useEffect(()=>{setSearchQ("");setShowSearch(false);},[tab]);return w;}
 
 // ==================== SEED ====================
 const T=todayStr(),TMR=tomorrowStr();
@@ -2791,7 +2792,7 @@ export default function App(){
   const[bioLoading,setBioLoading]=useState(false);const[bioErr,setBioErr]=useState("");
   const[events,setEvents]=useState([]);const[dbReady,setDbReady]=useState(false);const[dbError,setDbError]=useState("");
   const[tab,setTab]=useState("jadwal");const[form,setForm]=useState(emptyForm);const[editId,setEditId]=useState(null);
-  const[toast,setToast]=useState(null);const[confirmDlg,setConfirmDlg]=useState(null);const[showOnboarding,setShowOnboarding]=useState(false);const[filterDate,setFDate]=useState("");const[filterFrom,setFilterFrom]=useState("");const[filterTo,setFilterTo]=useState("");const[showRangeFilter,setShowRangeFilter]=useState(false);
+  const[toast,setToast]=useState(null);const[confirmDlg,setConfirmDlg]=useState(null);const[showOnboarding,setShowOnboarding]=useState(false);const[filterDate,setFDate]=useState("");const[filterFrom,setFilterFrom]=useState("");const[filterTo,setFilterTo]=useState("");const[showRangeFilter,setShowRangeFilter]=useState(false);const[searchQ,setSearchQ]=useState("");const[showSearch,setShowSearch]=useState(false);
   const[showAI,setShowAI]=useState(false);const[showReport,setShowReport]=useState(false);const[showSummary,setShowSummary]=useState(false);const[showAdmin,setShowAdmin]=useState(false);const[showProfile,setShowProfile]=useState(false);const[showLaporan,setShowLaporan]=useState(false);const[showBroadcast,setShowBroadcast]=useState(false);
   const[showForgot,setShowForgot]=useState(false);const[showRegister,setShowRegister]=useState(false);const[pendingRegs,setPendingRegs]=useState(()=>loadPendingRegs());
   const[loginLoading,setLoginLoading]=useState(false);const[loginPhase,setLoginPhase]=useState("");
@@ -3119,7 +3120,19 @@ const TH={
   const canReport=ROLES_WITH_REPORT.includes(role);
   const isStafAny=STAF_ROLES.includes(role);
   const isKasubbagAny=KASUBBAG_ROLES.includes(role);
-  const listEvents=getVisible();
+  const listEvents=(()=>{
+    const base=getVisible();
+    if(!searchQ.trim())return base;
+    const q=searchQ.trim().toLowerCase();
+    return base.filter(e=>
+      (e.namaAcara||"").toLowerCase().includes(q)||
+      (e.penyelenggara||"").toLowerCase().includes(q)||
+      (e.lokasi||"").toLowerCase().includes(q)||
+      (e.catatan||"").toLowerCase().includes(q)||
+      (e.pakaian||"").toLowerCase().includes(q)||
+      (e.tanggal||"").includes(q)
+    );
+  })();
   const showForm=tab==="form"&&role==="admin_rk";
   const showPenugasan=tab==="penugasan";
 
@@ -6058,7 +6071,38 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
     </div>}
 
     {/* ── Filters ── */}
-    {!showForm&&<><div style={{background:"white",borderBottom:"1px solid #E4EAF2",padding:"10px "+(isMobile?"14px":"32px"),display:"flex",gap:6,overflowX:"auto",flexShrink:0,alignItems:"center",scrollbarWidth:"none"}}>
+    {!showForm&&<>
+    {/* Search bar — expandable */}
+    <div style={{background:"white",borderBottom:"1px solid #E4EAF2",padding:"8px "+(isMobile?"14px":"32px"),display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
+      {showSearch
+        ?<div style={{flex:1,display:"flex",gap:7,alignItems:"center"}}>
+          <div style={{flex:1,display:"flex",alignItems:"center",gap:8,background:"#F8FAFC",borderRadius:12,padding:"8px 12px",border:"2px solid "+NAVY}}>
+            <span style={{fontSize:15,flexShrink:0}}>🔍</span>
+            <input
+              autoFocus
+              value={searchQ}
+              onChange={e=>setSearchQ(e.target.value)}
+              placeholder="Cari nama acara, penyelenggara, lokasi, catatan..."
+              style={{flex:1,border:"none",background:"transparent",fontSize:13,color:"#1E293B",outline:"none",minWidth:0}}
+            />
+            {searchQ&&<button onClick={()=>setSearchQ("")} style={{border:"none",background:"none",color:"#94A3B8",cursor:"pointer",fontSize:16,lineHeight:1,padding:"0 2px",flexShrink:0}}>✕</button>}
+          </div>
+          <button onClick={()=>{setShowSearch(false);setSearchQ("");}} style={{padding:"8px 14px",borderRadius:10,border:"1.5px solid #E2E8F0",background:"white",color:"#64748B",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>Tutup</button>
+        </div>
+        :<>
+          <button onClick={()=>setShowSearch(true)} className="btn-ios" style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:20,border:"1.5px solid #E4EAF2",background:"white",color:"#64748B",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>
+            <span style={{fontSize:14}}>🔍</span> Cari
+          </button>
+          <div style={{flex:1}}/>
+          <span style={{fontSize:11,color:"#94A3B8",fontWeight:500,flexShrink:0}}>{listEvents.length} agenda</span>
+        </>}
+    </div>
+    {searchQ.trim()&&<div style={{background:"#EFF6FF",padding:"5px "+(isMobile?"14px":"32px"),borderBottom:"1px solid #DBEAFE",display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+      <span style={{fontSize:11,background:NAVY,color:"white",borderRadius:20,padding:"2px 10px",fontWeight:700,letterSpacing:0.5}}>CARI</span>
+      <span style={{fontSize:12,color:"#1D4ED8",fontWeight:600}}>"{searchQ}" — {listEvents.length} hasil ditemukan</span>
+      <button onClick={()=>{setSearchQ("");setShowSearch(false);}} style={{marginLeft:"auto",padding:"3px 10px",borderRadius:8,border:"1.5px solid #BFDBFE",background:"white",color:"#1D4ED8",cursor:"pointer",fontSize:11,fontWeight:700}}>✕ Hapus</button>
+    </div>}
+    <div style={{background:"white",borderBottom:"1px solid #E4EAF2",padding:"10px "+(isMobile?"14px":"32px"),display:"flex",gap:6,overflowX:"auto",flexShrink:0,alignItems:"center",scrollbarWidth:"none"}}>
       <style>{"div::-webkit-scrollbar{display:none;}"}</style>
       {[{l:"Hari Ini",v:todayStr()},{l:"Besok",v:tomorrowStr()},{l:"Minggu Ini",v:"week"},{l:"Semua",v:""}].map(q=>{
         const active=(q.v==="week"?filterDate==="week":filterDate===q.v)&&(q.v!==""||filterDate==="");
