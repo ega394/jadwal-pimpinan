@@ -1604,6 +1604,15 @@ function DraftProgressView({events,user,upd,showT,askConfirm,setTab,isMobile}){
 function ApprovalQueueView({events,role,upd,showT,askConfirm,isMobile}){
   const NAVY="#0A1628",GOLD="#C9A84C";
   const[rejectTexts,setRT]=React.useState({});
+  // LocalTextarea: simpan state lokal agar tidak re-render list saat mengetik
+  function LocalTextarea({evId,placeholder,rows,onCommit}){
+    const[v,setV]=React.useState(rejectTexts[evId]||"");
+    React.useEffect(()=>{setV(rejectTexts[evId]||"");},[evId]);
+    return <textarea placeholder={placeholder} value={v} rows={rows||2}
+      style={{width:"100%",padding:"8px 10px",borderRadius:8,border:"1.5px solid #e2e8f0",fontSize:12,resize:"vertical",boxSizing:"border-box",marginBottom:10}}
+      onChange={e=>setV(e.target.value)}
+      onBlur={e=>onCommit(evId,e.target.value)}/>;
+  }
   const KASUBBAG_ROLES=["kasubbag_protokol","kasubbag_komdokpim"];
   const isKasubbag=KASUBBAG_ROLES.includes(role);
   const pending=events.filter(e=>isKasubbag?e.alur==="menunggu_kasubbag":e.alur==="menunggu_kabag")
@@ -1625,8 +1634,12 @@ function ApprovalQueueView({events,role,upd,showT,askConfirm,isMobile}){
       <div style={{fontSize:11,color:"#64748b",marginBottom:2}}>{fmt(ev.tanggal)} · {ev.jam} WITA · {ev.penyelenggara}</div>
       {ev.lokasi&&<div style={{fontSize:11,color:"#64748b",marginBottom:2}}>📍 {ev.lokasi}</div>}
       {ev.pakaian&&<div style={{fontSize:11,color:"#64748b",marginBottom:8}}>Pakaian: {ev.pakaian}</div>}
-      {ev.submittedBy&&<div style={{fontSize:11,color:"#94a3b8",marginBottom:10}}>Diajukan oleh: {getNamaByUsername(ev.submittedBy)}</div>}
-      <textarea rows={2} placeholder="Catatan penolakan (opsional)..." value={rejectTexts[ev.id]||""} onChange={e=>setRT(p=>({...p,[ev.id]:e.target.value}))} style={{width:"100%",padding:"8px 10px",borderRadius:8,border:"1.5px solid #e2e8f0",fontSize:12,resize:"vertical",boxSizing:"border-box",marginBottom:10}}/>
+      {ev.submittedBy&&<div style={{fontSize:11,color:"#94a3b8",marginBottom:6}}>Diajukan oleh: {getNamaByUsername(ev.submittedBy)}</div>}
+      {ev.undanganFile&&<div style={{display:"flex",gap:7,marginBottom:10}}>
+        <a href={ev.undanganFile} target="_blank" rel="noopener noreferrer" style={{flex:1,padding:"7px",borderRadius:8,border:"1.5px solid #0284c7",background:"white",color:"#0284c7",textDecoration:"none",textAlign:"center",fontSize:12,fontWeight:700}}>👁 Lihat Undangan</a>
+        <a href={ev.undanganFile} download={ev.undanganNama||"undangan"} style={{flex:1,padding:"7px",borderRadius:8,border:"none",background:"#0284c7",color:"white",textDecoration:"none",textAlign:"center",fontSize:12,fontWeight:700}}>⬇ Unduh</a>
+      </div>}
+      <LocalTextarea evId={ev.id} placeholder="Catatan penolakan (wajib diisi untuk kembalikan ke staf)..." rows={2} onCommit={(id,v)=>setRT(p=>({...p,[id]:v}))}/>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         <button onClick={()=>askConfirm("Kembalikan ke Staf?","Jadwal dikembalikan ke staf input dengan catatan perbaikan.",()=>{upd(ev.id,{alur:"ditolak",catatanTolak:rejectTexts[ev.id]||"Perlu perbaikan",_requiresEdit:true});showT("Dikembalikan ke Admin RK","warn");const _ur=loadUsers().find(u=>u.username===ev.submittedBy);if(_ur?.noWA)sendWA({to:_ur.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,event:"rejected",catatanTolak:rejectTexts[ev.id]||"",submittedBy:getNamaByUsername(ev.submittedBy)});sendPush({targetRole:"admin_rk",title:"❌ Jadwal Dikembalikan",body:ev.namaAcara+": "+(rejectTexts[ev.id]||"Perlu diperbaiki"),url:"/",tag:"rejected-"+ev.id});},"Kembalikan","#f59e0b")} style={{padding:"8px 16px",borderRadius:8,border:"1.5px solid #f59e0b",background:"white",color:"#b45309",cursor:"pointer",fontSize:12,fontWeight:600}}>↩ Kembalikan ke Staf</button>
         {isKasubbag&&<button onClick={()=>{upd(ev.id,{alur:"menunggu_kabag"});showT("Diteruskan ke Kabag","ok");loadUsers().filter(u=>u.role==="kabag"&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"kasubbag_approve"}));sendPush({targetRole:"kabag",title:"✅ Menunggu Persetujuan Anda",body:ev.namaAcara+" — "+ev.jam+" WITA",url:"/",tag:"approve-"+ev.id});}} style={{padding:"8px 16px",borderRadius:8,border:"none",background:"#7c3aed",color:"white",cursor:"pointer",fontSize:12,fontWeight:700}}>Teruskan ke Kabag →</button>}
@@ -4848,6 +4861,16 @@ function KasubbagDashboard({events, user, upd, showT, askConfirm, isMobile, onPe
   const [activeTab, setActiveTab] = useState("antrian");
   const [expandedId, setExpanded] = useState(null);
   const [rejectTexts, setRT] = useState({});
+  const [cabutTarget, setCabutTarget] = useState(null); // {evId, un, nama}
+  const [alasanCabut, setAlasanCabut] = useState("");
+  // LocalRejectTA — textarea terisolasi agar tidak re-render list saat mengetik
+  function LocalRejectTA({evId, onCommit}){
+    const[v,setV]=useState(rejectTexts[evId]||"");
+    React.useEffect(()=>{setV(rejectTexts[evId]||"");},[evId]);
+    return <textarea placeholder="Catatan penolakan (wajib diisi untuk kembalikan)..." value={v} rows={2}
+      style={{width:"100%",padding:"9px 11px",border:"none",resize:"none",fontSize:12,boxSizing:"border-box",color:"#334155"}}
+      onChange={e=>setV(e.target.value)} onBlur={e=>onCommit(evId,e.target.value)}/>;
+  }
   const fmt=t=>new Date(t).toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long"});
   const fmtShort=t=>new Date(t).toLocaleDateString("id-ID",{day:"numeric",month:"short"});
   const getNamaByUsername=un=>loadUsers().find(u=>u.username===un)?.nama||un;
@@ -4902,7 +4925,7 @@ function KasubbagDashboard({events, user, upd, showT, askConfirm, isMobile, onPe
               ✅ Verifikasi & Teruskan ke Kabag
             </button>
             <div style={{borderRadius:10,overflow:"hidden",border:"1.5px solid #FECACA"}}>
-              <textarea placeholder="Catatan penolakan..." value={rejectTexts[ev.id]||""} onChange={e=>setRT(p=>({...p,[ev.id]:e.target.value}))} rows={2} style={{width:"100%",padding:"9px 11px",border:"none",resize:"none",fontSize:12,boxSizing:"border-box",color:"#334155"}}/>
+              <LocalRejectTA evId={ev.id} onCommit={(id,v)=>setRT(p=>({...p,[id]:v}))}/>
               <button onClick={()=>askConfirm("Tolak & Kembalikan ke Staf?","Jadwal '"+ev.namaAcara+"' akan dikembalikan.",()=>{upd(ev.id,{alur:"ditolak",catatanTolak:rejectTexts[ev.id]||"",_requiresEdit:true});showT("Dikembalikan ke Admin RK","warn");const u=loadUsers().find(x=>x.username===ev.submittedBy);if(u?.noWA)sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,event:"rejected",catatanTolak:rejectTexts[ev.id]||"",submittedBy:getNamaByUsername(ev.submittedBy)});sendPush({targetRole:"admin_rk",title:"❌ Jadwal Dikembalikan",body:ev.namaAcara+": "+(rejectTexts[ev.id]||"Perlu perbaikan"),url:"/",tag:"rejected-"+ev.id});setExpanded(null);},"Tolak","#991B1B")}
                 style={{width:"100%",padding:"10px",border:"none",background:"#FEE2E2",color:"#991B1B",cursor:"pointer",fontSize:12,fontWeight:700}}>
                 ❌ Tolak & Kembalikan ke Admin RK
@@ -4938,17 +4961,28 @@ function KasubbagDashboard({events, user, upd, showT, askConfirm, isMobile, onPe
             <span style={{fontSize:14,color:"#94A3B8"}}>{exp?"▲":"▼"}</span>
           </div>
         </div>
-        {exp&&personilList.length>0&&<div style={{borderTop:"1px solid #ECFDF5",padding:"12px 16px",background:"#FAFFFC"}}>
-          <div style={{fontSize:11,fontWeight:800,color:"#475569",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Personil Bertugas</div>
-          {personilList.map(p=>(
-            <div key={p.un} style={{display:"flex",gap:10,alignItems:"center",padding:"8px 10px",background:"white",borderRadius:9,marginBottom:5,border:"1px solid #E2E8F0"}}>
+        {exp&&<div style={{borderTop:"1px solid #ECFDF5",padding:"12px 16px",background:"#FAFFFC"}}>
+          {ev.undanganFile&&<div style={{display:"flex",gap:7,marginBottom:10}}>
+            <a href={ev.undanganFile} target="_blank" rel="noopener noreferrer" style={{flex:1,padding:"7px",borderRadius:8,border:"1.5px solid #0284c7",background:"white",color:"#0284c7",textDecoration:"none",textAlign:"center",fontSize:12,fontWeight:700}}>👁 Lihat Undangan</a>
+            <a href={ev.undanganFile} download={ev.undanganNama||"undangan"} style={{flex:1,padding:"7px",borderRadius:8,border:"none",background:"#0284c7",color:"white",textDecoration:"none",textAlign:"center",fontSize:12,fontWeight:700}}>⬇ Unduh</a>
+          </div>}
+          {personilList.length>0&&<><div style={{fontSize:11,fontWeight:800,color:"#475569",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Personil Bertugas</div>
+          {personilList.map(p=>{
+            const uObj=loadUsers().find(u=>u.username===p.un);
+            const pRole=uObj?.role||"";
+            const myScope=isProto?["staf","admin_rk","kasubbag_protokol"]:["timkom","kasubbag_komdokpim"];
+            const bisaCabut=myScope.includes(pRole);
+            return <div key={p.un} style={{display:"flex",gap:10,alignItems:"center",padding:"8px 10px",background:bisaCabut?"#FAFCFF":"white",borderRadius:9,marginBottom:5,border:"1.5px solid "+(bisaCabut?"#BFDBFE":"#E2E8F0")}}>
               <div style={{width:30,height:30,borderRadius:8,background:"#EFF6FF",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:NAVY,flexShrink:0}}>{p.nama.slice(0,1)}</div>
               <div style={{flex:1}}>
                 <div style={{fontSize:12,fontWeight:700,color:"#1E293B"}}>{p.nama}</div>
-                <div style={{fontSize:10,color:"#94A3B8",textTransform:"capitalize"}}>{loadUsers().find(u=>u.username===p.un)?.role?.replace(/_/g," ")||""}</div>
+                <div style={{fontSize:10,color:"#94A3B8",textTransform:"capitalize"}}>{pRole.replace(/_/g," ")}</div>
               </div>
-            </div>
-          ))}
+              {bisaCabut&&<button onClick={e=>{e.stopPropagation();setCabutTarget({evId:ev.id,un:p.un,nama:p.nama});setAlasanCabut("");}}
+                style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #FCA5A5",background:"white",color:"#DC2626",fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0}}>Cabut</button>}
+            </div>;
+          })}
+          </>}
         </div>}
       </div>
     );
@@ -5033,6 +5067,37 @@ function KasubbagDashboard({events, user, upd, showT, askConfirm, isMobile, onPe
           })}
           {stafBawahan.length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#94A3B8"}}><div style={{fontSize:36,marginBottom:8}}>👤</div><div style={{fontSize:13,fontWeight:600}}>Belum ada staf terdaftar di bawah Anda</div></div>}
         </>}
+    {/* ── MODAL CABUT PENUGASAN ── */}
+    {cabutTarget&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"flex-end",zIndex:9999}}
+      onClick={e=>{if(e.target===e.currentTarget){setCabutTarget(null);setAlasanCabut("");}}}>
+      <div style={{background:"white",borderRadius:"18px 18px 0 0",padding:"20px 18px 32px",width:"100%",maxWidth:520,margin:"0 auto",boxSizing:"border-box"}}>
+        <div style={{fontSize:15,fontWeight:800,color:"#1E293B",marginBottom:4}}>Cabut Penugasan</div>
+        <div style={{fontSize:12,color:"#64748B",marginBottom:12}}>Cabut penugasan <strong>{cabutTarget.nama}</strong> dari kegiatan ini?</div>
+        <div style={{marginBottom:12}}>
+          <label style={{fontSize:12,fontWeight:700,color:"#475569",display:"block",marginBottom:5}}>Alasan pencabutan <span style={{color:"#DC2626"}}>*</span></label>
+          <textarea value={alasanCabut} onChange={e=>setAlasanCabut(e.target.value)}
+            placeholder="Contoh: Berhalangan hadir, ditugaskan kegiatan lain..."
+            rows={2} style={{width:"100%",padding:"9px 11px",borderRadius:9,border:"1.5px solid #E2E8F0",fontSize:12,resize:"none",boxSizing:"border-box"}}/>
+        </div>
+        <div style={{background:"#EFF6FF",borderRadius:9,padding:"8px 11px",marginBottom:14,fontSize:11,color:"#1E40AF"}}>📱 Notifikasi WA akan dikirim ke <strong>{cabutTarget.nama}</strong> secara otomatis.</div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setCabutTarget(null);setAlasanCabut("");}} style={{flex:1,padding:"12px",borderRadius:10,border:"1.5px solid #E2E8F0",background:"white",color:"#64748B",cursor:"pointer",fontWeight:700,fontSize:13}}>Batal</button>
+          <button onClick={()=>{
+            if(!alasanCabut.trim()){showT("Alasan pencabutan wajib diisi","error");return;}
+            const ev=events.find(e=>e.id===cabutTarget.evId);if(!ev)return;
+            upd(cabutTarget.evId,{personil:(ev.personil||[]).filter(x=>x!==cabutTarget.un)});
+            const tUser=loadUsers().find(u=>u.username===cabutTarget.un);
+            if(tUser?.noWA){
+              const sby=role==="kasubbag_protokol"?"Kasubbag Protokol":"Kasubbag Komdokpim";
+              const pesan="\u274C *Pencabutan Penugasan*\n\nYth. "+cabutTarget.nama+",\n\nPenugasan Anda pada kegiatan berikut telah dicabut:\n\n\uD83D\uDCCC *"+ev.namaAcara+"*\n\uD83D\uDCC5 "+ev.tanggal+"\n\u23F0 "+ev.jam+" WITA"+(ev.lokasi?"\n\uD83D\uDCCD "+ev.lokasi:"")+"\n\n\uD83D\uDCDD Alasan: "+alasanCabut+"\n\nJika ada pertanyaan silakan hubungi "+sby+".\n\n_Prokopim Kota Tarakan_\n_prokopim.tarakankota.go.id_";
+              fetch("/api/whatsapp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({event:"broadcast",pesanCustom:pesan,target:tUser.noWA})}).catch(()=>{});
+            }
+            showT("Penugasan "+cabutTarget.nama+" dicabut & WA terkirim","warn");
+            setCabutTarget(null);setAlasanCabut("");
+          }} style={{flex:1,padding:"12px",borderRadius:10,border:"none",background:"#DC2626",color:"white",cursor:"pointer",fontWeight:800,fontSize:13}}>Ya, Cabut & Kirim WA</button>
+        </div>
+      </div>
+    </div>}
       </div>
     </div>
   );
@@ -5665,6 +5730,8 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
         </div>}
       </div>
 
+      {/* KONFIRMASI KEHADIRAN — Admin RK bisa isi untuk WK dan WWK */}
+      {role==="admin_rk"&&ev.alur==="disetujui"&&<div style={{marginBottom:14,borderRadius:12,border:"1.5px solid #FDE68A",overflow:"hidden"}}>        <div style={{background:"#FFFBEB",padding:"8px 12px",display:"flex",alignItems:"center",gap:7,borderBottom:"1px solid #FDE68A"}}>          <span style={{fontSize:14}}>✏️</span>          <span style={{fontSize:11,fontWeight:700,color:"#92400E"}}>Input Kehadiran Pimpinan</span>          <span style={{fontSize:10,color:"#92400E",marginLeft:"auto",background:"#FEF3C7",padding:"2px 7px",borderRadius:20,border:"1px solid #FDE68A"}}>dicatat sebagai Admin RK</span>        </div>        <div style={{padding:"10px 12px"}}>          {[(ev.untukPimpinan||[]).includes("walikota")&&!ev.delegasiKeWWK&&{pim:"WK",key:"statusWK",label:"Wali Kota"},{pim:"WWK",key:"statusWWK",label:"Wakil Wali Kota",show:(ev.untukPimpinan||[]).includes("wakilwalikota")||ev.delegasiKeWWK}].filter(Boolean).map(cfg=>{            if(cfg===true)return null;            const {pim,key,label}=cfg;            const show=pim==="WK"?!ev.delegasiKeWWK&&(ev.untukPimpinan||[]).includes("walikota"):(ev.untukPimpinan||[]).includes("wakilwalikota")||ev.delegasiKeWWK;            if(!show)return null;            const status=ev[key];            const byKey=key==="statusWK"?"statusWK_by":"statusWWK_by";            const byVal=ev[byKey];            return <div key={pim} style={{marginBottom:10}}>              <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:6}}>{label}</div>              <div style={{display:"flex",gap:7}}>                {[{s:"hadir",l:"✓ Hadir",c:"#15803D"},{s:"tidak_hadir",l:"✗ Tidak Hadir",c:"#991B1B"}].map(({s,l,c})=>(                  <button key={s} onClick={e=>{e.stopPropagation();const patch={};patch[key]=s;patch[byKey]="admin_rk";upd(ev.id,patch);showT(label+" — "+s.replace("_"," ")+" (dicatat Admin RK)");loadUsers().filter(u=>(u.role==="kabag"||u.role==="kasubbag_protokol"||u.role==="kasubbag_komdokpim")&&u.noWA).forEach(u=>sendWA({to:u.noWA,namaAcara:ev.namaAcara,tanggal:ev.tanggal,jam:ev.jam,penyelenggara:ev.penyelenggara,lokasi:ev.lokasi,event:"konfirmasi_kehadiran",labelPimpinan:label,statusKehadiran:s}));}}                    style={{flex:1,padding:"10px 6px",borderRadius:10,cursor:"pointer",fontWeight:800,fontSize:12,border:"2px solid "+c,background:status===s?c:"white",color:status===s?"white":c}}>{l}</button>                ))}              </div>              {status&&<div style={{display:"flex",gap:6,alignItems:"center",marginTop:5}}>                <span style={{fontSize:11,padding:"2px 8px",borderRadius:20,background:status==="hadir"?"#DCFCE7":"#FEE2E2",color:status==="hadir"?"#15803D":"#991B1B",fontWeight:700,border:"1px solid "+(status==="hadir"?"#86EFAC":"#FCA5A5")}}>{status==="hadir"?"✓ Hadir":"✗ Tidak Hadir"}</span>                {byVal==="admin_rk"&&<span style={{fontSize:10,color:"#92400E",background:"#FEF3C7",padding:"2px 7px",borderRadius:20,border:"1px solid #FDE68A",fontWeight:600}}>✏️ Diisi Admin RK</span>}                {byVal&&byVal!=="admin_rk"&&<span style={{fontSize:10,color:"#475569",fontStyle:"italic"}}>dikonfirmasi langsung</span>}                {status&&<button onClick={e=>{e.stopPropagation();const patch={};patch[key]=null;patch[key==="statusWK"?"statusWK_by":"statusWWK_by"]=null;upd(ev.id,patch);showT("Konfirmasi "+label+" direset","warn");}}                  style={{fontSize:10,padding:"2px 8px",borderRadius:20,border:"1px dashed #CBD5E1",background:"white",color:"#94A3B8",cursor:"pointer"}}>Reset</button>}              </div>}            </div>;          })}        </div>      </div>}
       {/* REKAN KERJA — tampilkan untuk staf & timkom yang ditugaskan */}
       {["staf","timkom"].includes(role)&&(ev.personil||[]).includes(user.username)&&ev.alur==="disetujui"&&<div style={{marginBottom:12,padding:"11px 14px",borderRadius:11,background:"linear-gradient(90deg,#ECFDF5,#F0FDF4)",border:"1.5px solid #6EE7B7"}}>
         <div style={{fontSize:10,fontWeight:800,color:"#065F46",letterSpacing:1,textTransform:"uppercase",marginBottom:8,display:"flex",alignItems:"center",gap:5}}>
