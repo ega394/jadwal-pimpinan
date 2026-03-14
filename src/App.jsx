@@ -3738,7 +3738,7 @@ const TH={
   // ==================== LOGIN ====================
   if(!user){
     const features=[
-      ["📋","Approval Berjenjang","Staf → Kasubbag → Kabag otomatis"],
+      ["📋","Approval Berjenjang","Staf → Kasubbag → Kabag"],
       ["🤖","AI Auto-Isi","Scan undangan, form terisi otomatis"],
       ["📊","Briefing & Statistik","Ringkasan pagi + rekap kinerja tim"],
       ["⏱️","Timeline Realtime","Jadwal visual dengan penanda waktu"],
@@ -3746,47 +3746,6 @@ const TH={
       ["🔐","Keamanan Berlapis","Biometrik, sesi otomatis, anti brute-force"],
     ];
 
-    // ── Social Media Banner Component ──
-    const SocialBanner=()=>(
-      <div style={{borderRadius:14,overflow:"hidden",border:"1px solid hsla(42,78%,55%,0.15)",background:"hsla(215,30%,14%,0.6)",backdropFilter:"blur(10px)"}}>
-        {/* Header */}
-        <div style={{padding:"14px 16px 10px",borderBottom:"1px solid hsla(215,20%,22%,0.6)"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-            <div style={{width:28,height:28,borderRadius:8,background:"linear-gradient(135deg,#E1306C,#F77737,#FCAF45)",display:"flex",alignItems:"center",justifyContent:"center"}}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
-            </div>
-            <div>
-              <div style={{color:"hsl(210,20%,90%)",fontSize:12,fontWeight:700}}>@humas_tarakan</div>
-              <div style={{color:"hsl(215,15%,55%)",fontSize:10}}>Humas Pemerintah Kota Tarakan</div>
-            </div>
-          </div>
-          <div style={{color:"hsl(215,15%,55%)",fontSize:11,lineHeight:1.6}}>
-            Ikuti informasi terbaru kegiatan pimpinan dan pembangunan Kota Tarakan
-          </div>
-        </div>
-        {/* Social links */}
-        <div style={{padding:"10px 16px 14px",display:"flex",gap:8}}>
-          <a href="https://www.instagram.com/humas_tarakan" target="_blank" rel="noopener noreferrer"
-            style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,
-              padding:"10px 12px",borderRadius:10,
-              background:"linear-gradient(135deg,#E1306C,#F77737)",
-              color:"white",fontSize:12,fontWeight:700,textDecoration:"none",
-              transition:"all 0.2s",boxShadow:"0 2px 8px rgba(225,48,108,0.3)"}}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
-            Instagram
-          </a>
-          <a href="https://www.facebook.com/humaspemkottarakan" target="_blank" rel="noopener noreferrer"
-            style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,
-              padding:"10px 12px",borderRadius:10,
-              background:"linear-gradient(135deg,#1877F2,#0C5DC7)",
-              color:"white",fontSize:12,fontWeight:700,textDecoration:"none",
-              transition:"all 0.2s",boxShadow:"0 2px 8px rgba(24,119,242,0.3)"}}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-            Facebook
-          </a>
-        </div>
-      </div>
-    );
     // Warna tema
     const BG="hsl(215,30%,10%)";
     const CARD="hsl(215,35%,14%)";
@@ -3883,13 +3842,7 @@ const TH={
               </div>}
           </>}
 
-
-          {/* ── Social Media Banner ── */}
-          <div style={{marginTop:16,marginBottom:16}}>
-            <SocialBanner/>
-          </div>
-
-          <div style={{marginTop:"auto",paddingTop:8,textAlign:"center",color:MUTED,fontSize:10,letterSpacing:1.5,opacity:0.5}}>v1.0 · Prokopim Tarakan · 2026</div>
+          <div style={{marginTop:"auto",paddingTop:24,textAlign:"center",color:MUTED,fontSize:10,letterSpacing:1.5,opacity:0.5}}>v1.0 · Prokopim Tarakan · 2026</div>
         </div>
       </>}
 
@@ -3908,7 +3861,7 @@ const TH={
             </div>
             <div style={{width:40,height:3,background:"linear-gradient(90deg,"+GOLD2+","+GOLD_LIGHT+")",borderRadius:3,marginBottom:24}}/>
             <div style={{color:MUTED,fontSize:13,lineHeight:1.9,marginBottom:36}}>
-              Sistem Informasi Jadwal Kegiatan Pimpinan Daerah Kota Tarakan. Mengelola agenda, approval workflow, dan koordinasi tim protokol secara terpadu.
+              Sistem Informasi Jadwal Kegiatan Pimpinan Daerah Kota Tarakan. Mengelola agenda, approval workflow, dan koordinasi tim Protokol dan Komunikasi Pimpinan secara terpadu.
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
               {features.map(([ic,t,d],i)=><div key={t} className="feat-item" style={{display:"flex",alignItems:"center",gap:12,animationDelay:(i*0.1)+"s"}}>
@@ -3916,12 +3869,8 @@ const TH={
                 <div><div style={{color:FG,fontSize:13,fontWeight:700}}>{t}</div><div style={{color:MUTED,fontSize:11}}>{d}</div></div>
               </div>)}
             </div>
-            {/* ── Social Media Banner ── */}
-            <div style={{marginTop:28}}>
-              <SocialBanner/>
-            </div>
           </div>
-          <div style={{color:MUTED,fontSize:10,letterSpacing:1.5,opacity:0.5}}>v1.0 · Prokopim Tarakan · 2025</div>
+          <div style={{color:MUTED,fontSize:10,letterSpacing:1.5,opacity:0.5}}>v1.0 · Prokopim Tarakan · 2026</div>
         </div>
 
         {/* Right panel login */}
