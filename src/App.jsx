@@ -3167,6 +3167,12 @@ function AdminRKKehadiran({ev,upd,showT,setDelegTarget}){
   </div>;
 }
 
+// ── App-level context (avoids Rules-of-Hooks violation from inner component definitions) ──
+const AppCtx = React.createContext({});
+
+
+// ── AppCtx: provides App-scope deps to components outside App ──
+const AppCtx = React.createContext(null);
 
 // ==================== EVENT CARD (mobile) ====================
 function EventCard({ev}){
@@ -3256,10 +3262,9 @@ function TableView({evList}){
   </table>
 </div>;
 }
-
 // ==================== EXPANDED DETAIL ====================
 function ExpandedDetail({ev,hariEv}){
-  const {role,user,isMobile,handleUndanganUpload,handleSambutanDocx,handleSambutanUpload,updAndSync,storageDelete,showT,upd,setDelegTarget,setTab,setForm,setEditId,setPenugasanEv,setEvaluasiEv,rejectTexts,setRT,askConfirm,deleteAndSync,makeICS}=React.useContext(AppCtx);
+  const {role,user,isMobile,handleUndanganUpload,handleSambutanDocx,handleSambutanUpload,updAndSync,storageDelete,showT,upd,setDelegTarget,setTab,setForm,setEditId,setPenugasanEv,setEvaluasiEv,rejectTexts,setRT,askConfirm,deleteAndSync,makeICS,getNamaByUsername,setExp}=React.useContext(AppCtx);
   return <div>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":ev.jenisKegiatan==="Sambutan"?"1fr 1fr":"1fr",gap:"0 24px",marginBottom:14}}>
       <div>
@@ -3450,39 +3455,6 @@ function ExpandedDetail({ev,hariEv}){
   </div>;
 }
 
-// ==================== MAIN CONTENT ====================
-const pageTitle=tab==="tayang"?"Agenda Kegiatan Pimpinan":tab==="form"?"Input Jadwal Baru":tab==="semua"?"Semua Jadwal":tab==="penugasan"?"Penugasan Saya":tab==="jadwal"?KASUBBAG_ROLES.includes(role)||role==="kabag"?"Antrian Approval":role==="admin_rk"?"Jadwal Saya":"Jadwal Saya":"Jadwal";
-
-// ═══════════════════════════════════════════════════════════════
-// FITUR 1: SAPAAN CERDAS + RINGKASAN PAGI
-// ═══════════════════════════════════════════════════════════════
-const nowHr=new Date().getHours();
-const isMorningWindow=nowHr>=5&&nowHr<10;
-const todayEvents=events.filter(e=>e.alur==="disetujui"&&e.tanggal===todayStr()).sort((a,b)=>a.jam.localeCompare(b.jam));
-const tmrwEvents=events.filter(e=>e.alur==="disetujui"&&e.tanggal===tomorrowStr());
-const pendingMyAction=events.filter(e=>{
-  if(role==="admin_rk"&&(e.alur==="draft"||e.alur==="ditolak")&&e.submittedBy===user?.username)return true;
-  if(KASUBBAG_ROLES.includes(role)&&e.alur==="menunggu_kasubbag")return true;
-  if(role==="kabag"&&e.alur==="menunggu_kabag")return true;
-  if((role==="ajudan_walikota")&&e.alur==="disetujui"&&e.untukPimpinan?.includes("walikota")&&!e.statusWK&&!e.delegasiKeWWK)return true;
-  if((role==="ajudan_wakilwalikota")&&e.alur==="disetujui"&&(e.untukPimpinan?.includes("wakilwalikota")||e.delegasiKeWWK)&&!e.statusWWK)return true;
-  return false;
-});
-const myAssigned=events.filter(e=>e.alur==="disetujui"&&(e.personil||[]).includes(user?.username));
-const nextEvent=todayEvents.find(e=>{const evTime=new Date(e.tanggal+"T"+e.jam);return evTime>new Date();});
-
-const smartGreetText=(()=>{
-  const nm=user?.nama||"";
-  const greetW=nowHr<11?"Pagi":nowHr<15?"Siang":nowHr<18?"Sore":"Malam";
-  if(pendingMyAction.length>0)return`${greetW}, ${nm} — ${pendingMyAction.length} hal menunggu tindakan Anda`;
-  if(nextEvent)return`${greetW}, ${nm} — acara berikutnya: ${nextEvent.namaAcara} pukul ${nextEvent.jam}`;
-  if(todayEvents.length>0)return`${greetW}, ${nm} — ${todayEvents.length} jadwal hari ini`;
-  if(tmrwEvents.length>0)return`${greetW}, ${nm} — besok ada ${tmrwEvents.length} jadwal`;
-  return`${greetW}, ${nm} — tidak ada jadwal mendekati, semua terkendali`;
-})();
-
-const showMorningSummary=isMorningWindow&&!morningDismissed&&(todayEvents.length>0||pendingMyAction.length>0);
-
 // ═══════════════════════════════════════════════════════════════
 // FITUR 3: TIMELINE VISUAL
 // ═══════════════════════════════════════════════════════════════
@@ -3532,11 +3504,6 @@ function TimelineView({evList}){
     })}
   </div>;
 }
-
-
-// ── App-level context (avoids Rules-of-Hooks violation from inner component definitions) ──
-const AppCtx = React.createContext(null);
-
 
 export default function App(){
   const width=useWindowWidth();const isMobile=width<768;
@@ -5724,13 +5691,13 @@ function KabagDashboard({events, user, upd, showT, askConfirm, deleteAndSync, is
 
         {/* TAB JADWAL TAYANG */}
         {activeTab==="jadwal"&&<>
-          {(()=>{const _now2=new Date();const _futApproved=approved.filter(e=>new Date(e.tanggal+"T"+(e.jam||"00:00"))>=_now2);const _pairs2=getOverlappingPairs(_futApproved);if(_pairs2.length===0)return null;return(
+          {(()=>{const _n=new Date();const _fp=approved.filter(e=>new Date(e.tanggal+"T"+(e.jam||"00:00"))>=_n);const _pr=getOverlappingPairs(_fp);if(!_pr.length)return null;return(
             <div style={{background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:12,padding:"12px 14px",marginBottom:12}}>
               <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
                 <span style={{fontSize:18,flexShrink:0}}>⚡</span>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:12,fontWeight:700,color:"#991B1B",marginBottom:5}}>{_pairs2.length} pasang agenda berdekatan</div>
-                  {_pairs2.map((p,i)=>(
+                  <div style={{fontSize:12,fontWeight:700,color:"#991B1B",marginBottom:5}}>{_pr.length} pasang agenda berdekatan</div>
+                  {_pr.map((p,i)=>(
                     <div key={i} style={{background:"white",borderRadius:7,padding:"6px 9px",marginBottom:i<getOverlappingPairs(approved).length-1?4:0,border:"1px solid #FECACA",fontSize:11,color:"#374151"}}>
                       <span style={{fontWeight:800,color:"#991B1B"}}>{p.a.jam}</span> {p.a.namaAcara}
                       <span style={{color:"#9CA3AF",margin:"0 5px"}}>↔</span>
@@ -5740,8 +5707,7 @@ function KabagDashboard({events, user, upd, showT, askConfirm, deleteAndSync, is
                   ))}
                 </div>
               </div>
-            </div>
-          );})()}
+            </div>);})()}
           <div style={{fontSize:11,fontWeight:800,color:"#64748B",letterSpacing:1.2,textTransform:"uppercase",marginBottom:12}}>
             {approved.length} Jadwal Disetujui
           </div>
@@ -6501,10 +6467,38 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
   // FormView is a top-level component (defined outside App) to prevent re-mount on every keystroke
 
 
-  // ═══════════════════════════════════════════════════════════════
-  // FITUR 4: VIEW TOGGLE (Cards / Timeline) + FAB
-  // ═══════════════════════════════════════════════════════════════
+  // ==================== MAIN CONTENT ====================
+  const pageTitle=tab==="tayang"?"Agenda Kegiatan Pimpinan":tab==="form"?"Input Jadwal Baru":tab==="semua"?"Semua Jadwal":tab==="penugasan"?"Penugasan Saya":tab==="jadwal"?KASUBBAG_ROLES.includes(role)||role==="kabag"?"Antrian Approval":role==="admin_rk"?"Jadwal Saya":"Jadwal Saya":"Jadwal";
 
+  // ═══════════════════════════════════════════════════════════════
+  // FITUR 1: SAPAAN CERDAS + RINGKASAN PAGI
+  // ═══════════════════════════════════════════════════════════════
+  const nowHr=new Date().getHours();
+  const isMorningWindow=nowHr>=5&&nowHr<10;
+  const todayEvents=events.filter(e=>e.alur==="disetujui"&&e.tanggal===todayStr()).sort((a,b)=>a.jam.localeCompare(b.jam));
+  const tmrwEvents=events.filter(e=>e.alur==="disetujui"&&e.tanggal===tomorrowStr());
+  const pendingMyAction=events.filter(e=>{
+    if(role==="admin_rk"&&(e.alur==="draft"||e.alur==="ditolak")&&e.submittedBy===user?.username)return true;
+    if(KASUBBAG_ROLES.includes(role)&&e.alur==="menunggu_kasubbag")return true;
+    if(role==="kabag"&&e.alur==="menunggu_kabag")return true;
+    if((role==="ajudan_walikota")&&e.alur==="disetujui"&&e.untukPimpinan?.includes("walikota")&&!e.statusWK&&!e.delegasiKeWWK)return true;
+    if((role==="ajudan_wakilwalikota")&&e.alur==="disetujui"&&(e.untukPimpinan?.includes("wakilwalikota")||e.delegasiKeWWK)&&!e.statusWWK)return true;
+    return false;
+  });
+  const myAssigned=events.filter(e=>e.alur==="disetujui"&&(e.personil||[]).includes(user?.username));
+  const nextEvent=todayEvents.find(e=>{const evTime=new Date(e.tanggal+"T"+e.jam);return evTime>new Date();});
+
+  const smartGreetText=(()=>{
+    const nm=user?.nama||"";
+    const greetW=nowHr<11?"Pagi":nowHr<15?"Siang":nowHr<18?"Sore":"Malam";
+    if(pendingMyAction.length>0)return`${greetW}, ${nm} — ${pendingMyAction.length} hal menunggu tindakan Anda`;
+    if(nextEvent)return`${greetW}, ${nm} — acara berikutnya: ${nextEvent.namaAcara} pukul ${nextEvent.jam}`;
+    if(todayEvents.length>0)return`${greetW}, ${nm} — ${todayEvents.length} jadwal hari ini`;
+    if(tmrwEvents.length>0)return`${greetW}, ${nm} — besok ada ${tmrwEvents.length} jadwal`;
+    return`${greetW}, ${nm} — tidak ada jadwal mendekati, semua terkendali`;
+  })();
+
+  const showMorningSummary=isMorningWindow&&!morningDismissed&&(todayEvents.length>0||pendingMyAction.length>0);
 
   const MorningSummaryCard=()=>{
     if(!showMorningSummary)return null;
@@ -6583,14 +6577,18 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
     </div>;
   };
 
+  // ═══════════════════════════════════════════════════════════════
+  // FITUR 4: VIEW TOGGLE (Cards / Timeline) + FAB
+  // ═══════════════════════════════════════════════════════════════
 
-  // ── AppCtx value — provides all App-scope deps to extracted components ──
+  // ── AppCtx value ──
   const _ctxValue={
     expandedId,setExp,role,user,isMobile,
     getHari,fmt,fmtShort,todayStr,
     handleUndanganUpload,handleSambutanDocx,handleSambutanUpload,updAndSync,storageDelete,
     showT,upd,setDelegTarget,setTab,setForm,setEditId,setPenugasanEv,setEvaluasiEv,
     rejectTexts,setRT,askConfirm,deleteAndSync,makeICS,PersonilBanner,
+    getNamaByUsername,
   };
 
   const mainContentJSX=(<div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",background:"#F0F4FA",overflow:"hidden"}}>
