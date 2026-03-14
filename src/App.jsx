@@ -3523,7 +3523,18 @@ export default function App(){
     if(role==="wakilwalikota")return e.alur==="disetujui"&&(e.untukPimpinan.includes("wakilwalikota")||e.delegasiKeWWK)&&!e.statusWWK;
     return false;
   });
-  const goToPending=()=>{if(!pendingList.length)return;setFDate("");setExp(pendingList[0].id);setTimeout(()=>document.getElementById("ev-"+pendingList[0].id)?.scrollIntoView({behavior:"smooth",block:"center"}),200);};
+  const goToPending=()=>{
+    if(!pendingList.length)return;
+    // Pastikan pindah ke tab yang benar dulu
+    if(role==="walikota"||role==="wakilwalikota")setTab("jadwal");
+    else if(role==="ajudan_walikota"||role==="ajudan_wakilwalikota")setTab("ajudan");
+    else if(KASUBBAG_ROLES.includes(role)||role==="kabag")setTab("jadwal");
+    else if(role==="admin_rk")setTab("draft");
+    else setTab("jadwal");
+    setFDate("");
+    setExp(pendingList[0].id);
+    setTimeout(()=>document.getElementById("ev-"+pendingList[0].id)?.scrollIntoView({behavior:"smooth",block:"center"}),300);
+  };
 
   const submit=async()=>{
     if(!form.namaAcara||!form.tanggal||!form.jam){showT("Nama acara, tanggal & jam wajib diisi.","error");return;}if(!form.untukPimpinan||!form.untukPimpinan.length){showT("Pilih tujuan undangan (Wali Kota dan/atau Wakil Wali Kota) sebelum menyimpan.","error");return;}
@@ -6621,13 +6632,8 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
         ?<ApprovalQueueView events={events} role={role} upd={upd} showT={showT} askConfirm={askConfirm} isMobile={isMobile}/>
         :role==="mitra_kerja"
         ?<MitraKerjaView events={events} isMobile={isMobile}/>
-        :tab==="jadwal"&&tab!=="tayang"&&tab!=="semua"
-        ?<PimpinanView events={events} role={role} user={user} upd={upd} showT={showT} isMobile={isMobile} setDelegTarget={setDelegTarget}/>
-        :showForm&&tab!=="rk"
-        ?<FormView form={form} setForm={setForm} editId={editId} setEditId={setEditId} setTab={setTab} isMobile={isMobile} onSubmit={submit} onCancel={()=>{setForm(emptyForm);setEditId(null);setTab("jadwal");}} onOpenAI={()=>setShowAI(true)} onUndanganUpload={handleUndanganUpload} showT={showT} canUploadUndangan={role==="admin_rk"}/>
-        :(role==="admin_rk"&&tab==="rk")
-        ?<RKView events={events} user={user} upd={upd} updAndSync={updAndSync} showT={showT} isMobile={isMobile}/>
-        :listEvents.length===0
+        :(tab==="jadwal"||tab==="tayang"||tab==="semua")&&tab!=="form"
+        ?<>{listEvents.length===0
           ?<div style={{textAlign:"center",padding:"60px 24px",background:"white",borderRadius:20,boxShadow:"0 2px 16px rgba(0,0,0,0.06)"}}>
             {filterDate&&filterDate!=="all"
               ?<>
@@ -6643,7 +6649,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
                 <div style={{fontSize:52,marginBottom:12}}>📭</div>
                 <div style={{fontSize:16,fontWeight:700,color:"#334155",marginBottom:6}}>Belum ada jadwal</div>
                 <div style={{fontSize:13,color:"#94A3B8"}}>
-                  {role==="admin_rk"?"Klik tombol ⊕ Input Jadwal Baru untuk menambah jadwal pertama":"Belum ada jadwal yang diajukan"}
+                  {role==="admin_rk"?"Klik tombol ⊕ Input Jadwal Baru untuk menambah jadwal pertama":"Belum ada jadwal yang tersedia"}
                 </div>
               </>
             }
@@ -6653,6 +6659,16 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
               ?<TimelineView evList={listEvents}/>
               :<div>{listEvents.map(ev=><EventCard key={ev.id} ev={ev}/>)}</div>
             :<TableView evList={listEvents}/>
+        }</>
+        :showForm&&tab!=="rk"
+        ?<FormView form={form} setForm={setForm} editId={editId} setEditId={setEditId} setTab={setTab} isMobile={isMobile} onSubmit={submit} onCancel={()=>{setForm(emptyForm);setEditId(null);setTab("jadwal");}} onOpenAI={()=>setShowAI(true)} onUndanganUpload={handleUndanganUpload} showT={showT} canUploadUndangan={role==="admin_rk"}/>
+        :(role==="admin_rk"&&tab==="rk")
+        ?<RKView events={events} user={user} upd={upd} updAndSync={updAndSync} showT={showT} isMobile={isMobile}/>
+        :<div style={{textAlign:"center",padding:"60px 24px",background:"white",borderRadius:20,boxShadow:"0 2px 16px rgba(0,0,0,0.06)"}}>
+            <div style={{fontSize:52,marginBottom:12}}>📭</div>
+            <div style={{fontSize:16,fontWeight:700,color:"#334155",marginBottom:6}}>Tidak ada konten</div>
+            <div style={{fontSize:13,color:"#94A3B8"}}>Halaman ini belum tersedia untuk peran Anda</div>
+          </div>
       }
     </div>
   </div>);
