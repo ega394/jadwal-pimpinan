@@ -3859,18 +3859,18 @@ const TH={
                 <div style={{color:FG,fontSize:17,fontWeight:800}}>Komunikasi Pimpinan</div>
               </div>
             </div>
-            <div style={{width:40,height:3,background:"linear-gradient(90deg,"+GOLD2+","+GOLD_LIGHT+")",borderRadius:3,marginBottom:24}}/>
-            <div style={{color:MUTED,fontSize:13,lineHeight:1.9,marginBottom:36}}>
+            <div style={{width:40,height:3,background:"linear-gradient(90deg,"+GOLD2+","+GOLD_LIGHT+")",borderRadius:3,marginBottom:20}}/>
+            <div style={{color:MUTED,fontSize:12.5,lineHeight:1.8,marginBottom:28}}>
               Sistem Informasi Jadwal Kegiatan Pimpinan Daerah Kota Tarakan. Mengelola agenda, approval workflow, dan koordinasi tim Protokol dan Komunikasi Pimpinan secara terpadu.
             </div>
-            <div style={{display:"flex",flexDirection:"column",gap:12}}>
-              {features.map(([ic,t,d],i)=><div key={t} className="feat-item" style={{display:"flex",alignItems:"center",gap:12,animationDelay:(i*0.1)+"s"}}>
-                <div style={{width:34,height:34,borderRadius:9,background:"hsla(42,78%,55%,0.12)",border:"1px solid hsla(42,78%,55%,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0}}>{ic}</div>
-                <div><div style={{color:FG,fontSize:13,fontWeight:700}}>{t}</div><div style={{color:MUTED,fontSize:11}}>{d}</div></div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px 16px"}}>
+              {features.map(([ic,t,d],i)=><div key={t} className="feat-item" style={{display:"flex",alignItems:"flex-start",gap:10,animationDelay:(i*0.06)+"s"}}>
+                <div style={{width:30,height:30,borderRadius:8,background:"hsla(42,78%,55%,0.1)",border:"1px solid hsla(42,78%,55%,0.18)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,flexShrink:0,marginTop:1}}>{ic}</div>
+                <div><div style={{color:FG,fontSize:12,fontWeight:700,lineHeight:1.3}}>{t}</div><div style={{color:MUTED,fontSize:10,lineHeight:1.4,marginTop:1}}>{d}</div></div>
               </div>)}
             </div>
           </div>
-          <div style={{color:MUTED,fontSize:10,letterSpacing:1.5,opacity:0.5}}>v1.0 · Prokopim Tarakan · 2026</div>
+          <div style={{color:MUTED,fontSize:10,letterSpacing:1.5,opacity:0.5,marginTop:20}}>v1.0 · Prokopim Tarakan · 2026</div>
         </div>
 
         {/* Right panel login */}
