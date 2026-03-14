@@ -3889,7 +3889,7 @@ const TH={
             <SocialBanner/>
           </div>
 
-          <div style={{marginTop:"auto",paddingTop:8,textAlign:"center",color:MUTED,fontSize:10,letterSpacing:1.5,opacity:0.5}}>v1.0 · Prokopim Tarakan · 2025</div>
+          <div style={{marginTop:"auto",paddingTop:8,textAlign:"center",color:MUTED,fontSize:10,letterSpacing:1.5,opacity:0.5}}>v1.0 · Prokopim Tarakan · 2026</div>
         </div>
       </>}
 
