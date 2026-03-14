@@ -4519,7 +4519,7 @@ function AjudanDashboard({events, user, upd, showT, setDelegTarget, isMobile}){
       <div style={{background:"linear-gradient(135deg,"+NAVY+" 0%,#1B3360 100%)",padding:isMobile?"18px 16px 22px":"26px 32px 30px",position:"relative",overflow:"hidden"}}>
         <div style={{position:"absolute",top:-30,right:-30,width:130,height:130,borderRadius:"50%",background:"rgba(201,168,76,0.07)"}}/>
         <div style={{color:"rgba(255,255,255,0.55)",fontSize:12,marginBottom:3}}>{greet},</div>
-        <div style={{color:"white",fontSize:isMobile?18:22,fontWeight:900,marginBottom:2}}>Ajudan Pimpinan</div>
+        <div style={{color:"white",fontSize:isMobile?18:22,fontWeight:900,marginBottom:2}}>{user?.nama||"Ajudan Pimpinan"}</div>
         <div style={{color:GOLD,fontSize:12,fontWeight:600}}>{fmt(todayS)} &nbsp;·&nbsp; {needsConfirm.length} perlu konfirmasi</div>
       </div>
 
@@ -5297,7 +5297,7 @@ function KabagDashboard({events, user, upd, showT, askConfirm, deleteAndSync, is
       <div style={{background:"linear-gradient(135deg,"+NAVY+" 0%,#1B3360 100%)",padding:isMobile?"16px 16px 20px":"22px 28px 26px",position:"relative",overflow:"hidden"}}>
         <div style={{position:"absolute",top:-20,right:-20,width:100,height:100,borderRadius:"50%",background:"rgba(201,168,76,0.08)"}}/>
         <div style={{color:"rgba(255,255,255,0.55)",fontSize:11,marginBottom:2}}>Dashboard</div>
-        <div style={{color:"white",fontSize:isMobile?17:21,fontWeight:900,marginBottom:3}}>Kepala Bagian</div>
+        <div style={{color:"white",fontSize:isMobile?17:21,fontWeight:900,marginBottom:3}}>{user?.nama||"Kepala Bagian"}</div>
         <div style={{color:GOLD,fontSize:11,fontWeight:600}}>{antrian.length} menunggu persetujuan · {approved.length} jadwal aktif</div>
       </div>
 
@@ -5525,7 +5525,7 @@ function KasubbagDashboard({events, user, upd, showT, askConfirm, isMobile, onPe
         <div style={{position:"absolute",top:-20,right:-20,width:100,height:100,borderRadius:"50%",background:"rgba(201,168,76,0.08)"}}/>
         <div style={{color:"rgba(255,255,255,0.55)",fontSize:11,marginBottom:2}}>Dashboard</div>
         <div style={{color:"white",fontSize:isMobile?16:20,fontWeight:900,marginBottom:3}}>
-          {isProto?"Kasubbag Protokol":"Kasubbag Komunikasi & Dokumentasi"}
+          {user?.nama||(isProto?"Kasubbag Protokol":"Kasubbag Komunikasi & Dokumentasi")}
         </div>
         <div style={{color:GOLD,fontSize:11,fontWeight:600}}>
           {antrian.length} menunggu review · {stafBawahan.length} personil di bawah
@@ -5967,7 +5967,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
         <div style={{position:"absolute",top:-30,right:-30,width:140,height:140,borderRadius:"50%",background:"rgba(201,168,76,0.08)"}}/>
         <div style={{position:"absolute",bottom:-20,right:40,width:80,height:80,borderRadius:"50%",background:"rgba(201,168,76,0.05)"}}/>
         <div style={{color:"rgba(255,255,255,0.6)",fontSize:12,marginBottom:4}}>{greeting},</div>
-        <div style={{color:"white",fontSize:isMobile?20:24,fontWeight:900,marginBottom:2}}>{title}</div>
+        <div style={{color:"white",fontSize:isMobile?20:24,fontWeight:900,marginBottom:2}}>{user?.nama||title}</div>
         <div style={{color:GOLD,fontSize:12,fontWeight:600}}>
           {fmt(todayStr())} &nbsp;·&nbsp;{" "}
           {(role==="kasubbag_protokol"||role==="kasubbag_komdokpim"||role==="kabag")
@@ -6379,7 +6379,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
   const nextEvent=todayEvents.find(e=>{const evTime=new Date(e.tanggal+"T"+e.jam);return evTime>new Date();});
 
   const smartGreetText=(()=>{
-    const nm=(user?.nama||"").split(" ")[0];
+    const nm=user?.nama||"";
     const greetW=nowHr<11?"Pagi":nowHr<15?"Siang":nowHr<18?"Sore":"Malam";
     if(pendingMyAction.length>0)return`${greetW}, ${nm} — ${pendingMyAction.length} hal menunggu tindakan Anda`;
     if(nextEvent)return`${greetW}, ${nm} — acara berikutnya: ${nextEvent.namaAcara} pukul ${nextEvent.jam}`;
@@ -6601,7 +6601,8 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
     {/* ── Content area ── */}
     <div style={{flex:1,overflowY:"auto",padding:isMobile?"12px 14px calc(env(safe-area-inset-bottom,0px) + 72px)":"24px 32px 48px"}}>
       {/* ── Morning Summary + Streak ── */}
-      {(tab==="jadwal"||tab==="tayang"||tab==="semua"||tab==="ajudan"||tab==="dashboard")&&<>
+      {/* ── Morning Summary + Streak — hanya di tab tayang/semua dan role tanpa dashboard khusus ── */}
+      {(tab==="tayang"||tab==="semua")&&<>
         <MorningSummaryCard/>
         {["admin_rk","staf","timkom"].includes(role)&&<UserStreakCard/>}
       </>}
