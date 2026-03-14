@@ -3374,6 +3374,7 @@ export default function App(){
 
   const deleteAndSync=useCallback((id)=>{setEvents(p=>{const ev=p.find(e=>e.id===id);if(ev?.sambutanFile&&!ev.sambutanFile.startsWith("data:"))storageDelete("sambutan",ev.sambutanFile).catch(e=>console.warn("Sync:",e?.message||e));if(ev?.undanganFile&&!ev.undanganFile.startsWith("data:"))storageDelete("undangan",ev.undanganFile).catch(e=>console.warn("Sync:",e?.message||e));dbDelete(id).catch(console.error);return p.filter(e=>e.id!==id);});},[]);
   const upd=(id,patch)=>updAndSync(id,patch);
+  const getNamaByUsername=un=>loadUsers().find(u=>u.username===un)?.nama||un;
 
   // ── DOCX → PDF via /api/sambutan ──
   const handleSambutanDocx=useCallback(async(evId,file,ev)=>{
@@ -3521,8 +3522,10 @@ export default function App(){
     else if(role==="ajudan_walikota"||role==="ajudan_wakilwalikota")base=events.filter(e=>e.alur==="disetujui");
     else if(role==="timkom")base=events.filter(e=>e.alur!=="ditolak");
     else if(role==="mitra_kerja")base=events.filter(e=>e.alur==="disetujui");
-    else if(role==="kasubbag_protokol"||role==="kasubbag_komdokpim")base=tab==="semua"?events:events.filter(e=>e.alur==="menunggu_kasubbag"||(e.alurHapus&&e.alur==="disetujui"));
-    else if(role==="kabag")base=tab==="semua"?events:events.filter(e=>e.alur==="menunggu_kabag"||(e.alurHapus==="menunggu_kabag"));
+    else if(role==="kasubbag_protokol"||role==="kasubbag_komdokpim")
+      base=tab==="semua"?events:tab==="tayang"?events.filter(e=>e.alur==="disetujui"):events.filter(e=>e.alur==="menunggu_kasubbag"||(e.alurHapus&&e.alur==="disetujui"));
+    else if(role==="kabag")
+      base=tab==="semua"?events:tab==="tayang"?events.filter(e=>e.alur==="disetujui"):events.filter(e=>e.alur==="menunggu_kabag"||(e.alurHapus==="menunggu_kabag"));
     if(filterDate==="range"&&(filterFrom||filterTo)){
       base=base.filter(e=>(!filterFrom||e.tanggal>=filterFrom)&&(!filterTo||e.tanggal<=filterTo));
     }else if(filterDate==="week"){
@@ -6645,7 +6648,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
     {/* ── Content area ── */}
     <div style={{flex:1,overflowY:"auto",padding:isMobile?"12px 14px calc(env(safe-area-inset-bottom,0px) + 72px)":"24px 32px 48px"}}>
       {/* ── Morning Summary + Streak — hanya di tab tayang/semua dan role tanpa dashboard khusus ── */}
-      {(tab==="tayang"||tab==="semua")&&!["kasubbag_protokol","kasubbag_komdokpim","kabag"].includes(role)&&<>
+      {(tab==="tayang"||tab==="semua")&&<>
         <MorningSummaryCard/>
         {["admin_rk","staf","timkom"].includes(role)&&<UserStreakCard/>}
       </>}
@@ -6690,13 +6693,6 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
       /* 8. Kasubbag/Kabag: Antrian Approval (tab jadwal) */
       :(["kasubbag_protokol","kasubbag_komdokpim","kabag"].includes(role)&&tab==="jadwal")
         ?<ApprovalQueueView events={events} role={role} upd={upd} showT={showT} askConfirm={askConfirm} isMobile={isMobile}/>
-
-      /* 8b. Kabag/Kasubbag di tab tayang → gunakan KabagDashboard/KasubbagDashboard */
-      :(role==="kabag"&&(tab==="tayang"||tab==="dashboard"))
-        ?<KabagDashboard events={events} user={user} upd={upd} showT={showT} askConfirm={askConfirm} deleteAndSync={deleteAndSync} isMobile={isMobile}/>
-
-      :(KASUBBAG_ROLES.includes(role)&&(tab==="tayang"||tab==="dashboard"))
-        ?<KasubbagDashboard events={events} user={user} upd={upd} showT={showT} askConfirm={askConfirm} isMobile={isMobile} onPenugasan={ev=>setPenugasanEv(ev)}/>
 
       /* 9. Mitra Kerja */
       :role==="mitra_kerja"&&(tab==="mitra"||tab==="jadwal")
