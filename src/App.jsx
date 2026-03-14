@@ -6010,17 +6010,17 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
             </div>
         )}
 
-        {/* Peringatan acara berdekatan */}
-        {getOverlappingPairs(myEvs).length>0&&(
+        {/* Peringatan acara berdekatan — hanya untuk agenda hari ini atau mendatang */}
+        {(()=>{const _now=new Date();const _futureEvs=myEvs.filter(e=>new Date(e.tanggal+"T"+(e.jam||"00:00"))>=_now);const _pairs=getOverlappingPairs(_futureEvs);if(_pairs.length===0)return null;return(
             <div style={{background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:12,padding:"12px 16px",marginBottom:14,cursor:"default"}}>
               <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
                 <span style={{fontSize:20,flexShrink:0}}>⚡</span>
                 <div style={{flex:1}}>
                   <div style={{fontSize:13,fontWeight:700,color:"#991B1B",marginBottom:5}}>
-                    {getOverlappingPairs(myEvs).length} pasang agenda berdekatan
+                    {_pairs.length} pasang agenda berdekatan
                   </div>
-                  {getOverlappingPairs(myEvs).map((p,i)=>(
-                    <div key={i} style={{background:"white",borderRadius:8,padding:"7px 10px",marginBottom:i<getOverlappingPairs(myEvs).length-1?5:0,border:"1px solid #FECACA"}}>
+                  {_pairs.map((p,i)=>(
+                    <div key={i} style={{background:"white",borderRadius:8,padding:"7px 10px",marginBottom:i<_pairs.length-1?5:0,border:"1px solid #FECACA"}}>
                       <div style={{fontSize:11,color:"#374151",fontWeight:600,lineHeight:1.4}}>
                         <span style={{color:"#991B1B",fontWeight:800}}>{p.a.jam}</span> {p.a.namaAcara}
                         <span style={{color:"#9CA3AF",margin:"0 6px"}}>vs</span>
@@ -6039,7 +6039,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
                 </div>
               </div>
             </div>
-        )}
+        );})()}
         {/* Antrian Approval untuk kasubbag_protokol/kabag */}
         {pendingApproval.length>0&&<>
           <div style={{fontSize:11,fontWeight:800,color:"#7C3AED",letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
@@ -6537,8 +6537,8 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
       {role==="admin_rk"&&tab==="jadwal"&&<button onClick={()=>{setTab("form");setForm(emptyForm);setEditId(null);}} className="btn-ios" style={{padding:"9px 18px",borderRadius:10,border:"none",background:"linear-gradient(135deg,"+NAVY+",#1E3254)",color:"white",cursor:"pointer",fontSize:13,fontWeight:700,boxShadow:"0 4px 14px rgba(10,22,40,0.3)"}}>+ Input Jadwal Baru</button>}
     </div>}
 
-    {/* ── Filters ── */}
-    {!showForm&&<>
+    {/* ── Filters — hanya tampil di tab yang menampilkan list event ── */}
+    {!showForm&&(tab==="tayang"||tab==="semua"||(tab==="jadwal"&&!["kasubbag_protokol","kasubbag_komdokpim","kabag"].includes(role))||tab==="mitra")&&<>
     {/* Search bar — expandable */}
     <div style={{background:"white",borderBottom:"1px solid #E4EAF2",padding:"8px "+(isMobile?"14px":"32px"),display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
       {showSearch
@@ -6600,9 +6600,8 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
 
     {/* ── Content area ── */}
     <div style={{flex:1,overflowY:"auto",padding:isMobile?"12px 14px calc(env(safe-area-inset-bottom,0px) + 72px)":"24px 32px 48px"}}>
-      {/* ── Morning Summary + Streak ── */}
       {/* ── Morning Summary + Streak — hanya di tab tayang/semua dan role tanpa dashboard khusus ── */}
-      {(tab==="tayang"||tab==="semua")&&<>
+      {(tab==="tayang"||tab==="semua")&&!["kasubbag_protokol","kasubbag_komdokpim","kabag"].includes(role)&&<>
         <MorningSummaryCard/>
         {["admin_rk","staf","timkom"].includes(role)&&<UserStreakCard/>}
       </>}
@@ -6647,6 +6646,13 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
       /* 8. Kasubbag/Kabag: Antrian Approval (tab jadwal) */
       :(["kasubbag_protokol","kasubbag_komdokpim","kabag"].includes(role)&&tab==="jadwal")
         ?<ApprovalQueueView events={events} role={role} upd={upd} showT={showT} askConfirm={askConfirm} isMobile={isMobile}/>
+
+      /* 8b. Kabag/Kasubbag di tab tayang → gunakan KabagDashboard/KasubbagDashboard */
+      :(role==="kabag"&&(tab==="tayang"||tab==="dashboard"))
+        ?<KabagDashboard events={events} user={user} upd={upd} showT={showT} askConfirm={askConfirm} deleteAndSync={deleteAndSync} isMobile={isMobile}/>
+
+      :(KASUBBAG_ROLES.includes(role)&&(tab==="tayang"||tab==="dashboard"))
+        ?<KasubbagDashboard events={events} user={user} upd={upd} showT={showT} askConfirm={askConfirm} isMobile={isMobile} onPenugasan={ev=>setPenugasanEv(ev)}/>
 
       /* 9. Mitra Kerja */
       :role==="mitra_kerja"&&(tab==="mitra"||tab==="jadwal")
