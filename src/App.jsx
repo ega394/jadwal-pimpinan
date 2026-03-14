@@ -3459,48 +3459,122 @@ function ExpandedDetail({ev,hariEv}){
 // ═══════════════════════════════════════════════════════════════
 function TimelineView({evList}){
   const {expandedId,setExp,getHari,todayStr}=React.useContext(AppCtx);
-  const nowMin=new Date().getHours()*60+new Date().getMinutes();
+  const [showPast,setShowPast]=React.useState(false);
+  const now=new Date();
+  const nowStr=now.toISOString().slice(0,16).replace("T"," ");
   const toMin=t=>{const[h,m]=(t||"00:00").split(":");return parseInt(h)*60+parseInt(m);};
-  return <div style={{position:"relative",paddingLeft:28}}>
-    {/* Garis vertikal */}
-    <div style={{position:"absolute",left:11,top:0,bottom:0,width:2,background:"#E2E8F0",borderRadius:2}}/>
-    {evList.map((ev,i)=>{
-      const evMin=toMin(ev.jam);
-      const isPast=ev.tanggal<todayStr()||(ev.tanggal===todayStr()&&evMin<nowMin);
-      const isNow=ev.tanggal===todayStr()&&Math.abs(evMin-nowMin)<60;
-      const isFuture=!isPast&&!isNow;
-      return <div key={ev.id} style={{position:"relative",marginBottom:i<evList.length-1?6:0,animation:"upSpring 0.35s ease both",animationDelay:(i*0.05)+"s"}}>
+  const nowMin=now.getHours()*60+now.getMinutes();
+
+  // Pisah upcoming (termasuk sekarang) dan past, sort masing-masing
+  const upcoming=[...evList.filter(e=>(e.tanggal+" "+e.jam)>=nowStr)]
+    .sort((a,b)=>(a.tanggal+a.jam).localeCompare(b.tanggal+b.jam));
+  const past=[...evList.filter(e=>(e.tanggal+" "+e.jam)<nowStr)]
+    .sort((a,b)=>(b.tanggal+b.jam).localeCompare(a.tanggal+a.jam)); // terbaru di atas
+
+  const fmtTgl=t=>{
+    const d=new Date(t+"T00:00:00");
+    const hr=getHari(t);
+    const day=d.getDate();
+    const bulan=["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"][d.getMonth()];
+    const thn=d.getFullYear();
+    return hr.slice(0,3)+", "+day+" "+bulan+" "+thn;
+  };
+
+  const renderCard=(ev,i,arr)=>{
+    const evMin=toMin(ev.jam);
+    const isPast=(ev.tanggal+" "+ev.jam)<nowStr;
+    const isNow=ev.tanggal===todayStr()&&Math.abs(evMin-nowMin)<60;
+    const isFuture=!isPast&&!isNow;
+    const isToday=ev.tanggal===todayStr();
+    // Tampilkan pemisah tanggal jika berbeda dari item sebelumnya
+    const prevTgl=i>0?arr[i-1].tanggal:null;
+    const showDateSep=ev.tanggal!==prevTgl;
+
+    return <React.Fragment key={ev.id}>
+      {/* Pemisah tanggal */}
+      {showDateSep&&<div style={{display:"flex",alignItems:"center",gap:8,margin:"10px 0 8px",marginLeft:-4}}>
+        <div style={{width:20,height:20,borderRadius:"50%",background:isToday?"linear-gradient(135deg,#0A1628,#1E3254)":"#E8EDF4",
+          border:"2px solid "+(isToday?"#C9A84C":"#CBD5E1"),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          <div style={{width:6,height:6,borderRadius:"50%",background:isToday?"#C9A84C":"#94A3B8"}}/>
+        </div>
+        <span style={{fontSize:11,fontWeight:800,color:isToday?"#0A1628":"#64748B",letterSpacing:0.3,
+          background:isToday?"linear-gradient(90deg,#FEF9EC,transparent)":isPast?"transparent":"#F8FAFF",
+          padding:isToday?"3px 8px":"0",borderRadius:6,
+          borderLeft:isToday?"3px solid #C9A84C":"none",paddingLeft:isToday?"8px":"0"}}>
+          {isToday?"● HARI INI — "+fmtTgl(ev.tanggal):fmtTgl(ev.tanggal)}
+        </span>
+      </div>}
+      <div style={{position:"relative",marginBottom:i<arr.length-1?6:0,animation:"upSpring 0.35s ease both",animationDelay:(i*0.04)+"s"}}>
         {/* Dot */}
         <div style={{position:"absolute",left:-22,top:16,width:12,height:12,borderRadius:"50%",
-          background:isNow?"linear-gradient(135deg,#C9A84C,#E8C86A)":isPast?"#CBD5E1":NAVY,
-          border:isNow?"2px solid rgba(201,168,76,0.3)":"2px solid white",
-          boxShadow:isNow?"0 0 0 4px rgba(201,168,76,0.15)":"0 0 0 3px #F0F4FA",
+          background:isNow?"linear-gradient(135deg,#C9A84C,#E8C86A)":isPast?"#E2E8F0":NAVY,
+          border:"2px solid white",
+          boxShadow:isNow?"0 0 0 4px rgba(201,168,76,0.2)":"0 0 0 3px #F0F4FA",
           zIndex:2}}/>
-        {/* Penanda SEKARANG */}
-        {isNow&&<div style={{position:"absolute",left:-46,top:12,fontSize:8,fontWeight:800,color:"#C9A84C",letterSpacing:0.5,transform:"rotate(-90deg)",transformOrigin:"center"}}>NOW</div>}
-        {/* Card */}
-        <div onClick={()=>setExp(expandedId===ev.id?null:ev.id)} style={{background:"white",borderRadius:14,padding:"12px 14px",cursor:"pointer",
+        {isNow&&<div style={{position:"absolute",left:-46,top:12,fontSize:8,fontWeight:800,color:"#C9A84C",
+          letterSpacing:0.5,transform:"rotate(-90deg)",transformOrigin:"center"}}>NOW</div>}
+        <div onClick={()=>setExp(expandedId===ev.id?null:ev.id)} style={{
+          background:"white",borderRadius:14,padding:"11px 14px",cursor:"pointer",
           border:"1.5px solid "+(isNow?"#C9A84C":isPast?"#F1F5F9":"#E8EDF4"),
-          opacity:isPast?0.65:1,
-          boxShadow:isNow?"0 4px 16px rgba(201,168,76,0.15)":"0 1px 6px rgba(0,0,0,0.04)",
+          boxShadow:isNow?"0 4px 16px rgba(201,168,76,0.15)":"0 1px 4px rgba(0,0,0,0.04)",
           transition:"all 0.15s ease"}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <div style={{background:isNow?"linear-gradient(135deg,#0A1628,#1B3360)":isPast?"#F1F5F9":"#F8FAFF",borderRadius:9,padding:"6px 8px",textAlign:"center",minWidth:42,flexShrink:0}}>
-              <div style={{fontSize:14,fontWeight:900,color:isNow?"#C9A84C":isPast?"#94A3B8":"#0F172A",lineHeight:1}}>{ev.jam}</div>
-              <div style={{fontSize:8,color:isNow?"rgba(255,255,255,0.6)":isPast?"#CBD5E1":"#94A3B8",fontWeight:700,marginTop:1}}>WITA</div>
+            {/* Jam box */}
+            <div style={{background:isNow?"linear-gradient(135deg,#0A1628,#1E3254)":isPast?"#F8FAFC":"#F0F4FF",
+              borderRadius:9,padding:"5px 8px",textAlign:"center",minWidth:44,flexShrink:0}}>
+              <div style={{fontSize:13,fontWeight:900,color:isNow?"#C9A84C":isPast?"#94A3B8":"#0A1628",lineHeight:1}}>{ev.jam}</div>
+              <div style={{fontSize:8,color:isNow?"rgba(201,168,76,0.7)":isPast?"#CBD5E1":"#94A3B8",fontWeight:700,marginTop:1}}>WITA</div>
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:700,color:isPast?"#94A3B8":"#0F172A",lineHeight:1.3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.namaAcara}</div>
-              <div style={{fontSize:11,color:isPast?"#CBD5E1":"#64748B",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.penyelenggara}{ev.lokasi?" · "+ev.lokasi:""}</div>
+              <div style={{fontSize:13,fontWeight:700,color:isPast?"#94A3B8":"#0F172A",lineHeight:1.3,
+                overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.namaAcara}</div>
+              <div style={{fontSize:11,color:isPast?"#CBD5E1":"#64748B",marginTop:2,
+                overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                {ev.penyelenggara}{ev.lokasi?" · "+ev.lokasi:""}
+              </div>
             </div>
-            {isPast&&<span style={{fontSize:9,background:"#F1F5F9",color:"#94A3B8",borderRadius:4,padding:"2px 6px",fontWeight:700,flexShrink:0}}>Selesai</span>}
-            {isNow&&<span style={{fontSize:9,background:"linear-gradient(90deg,#0A1628,#1B4080)",color:"#C9A84C",borderRadius:4,padding:"2px 6px",fontWeight:800,flexShrink:0,animation:"pulse 2s ease infinite"}}>Berlangsung</span>}
-            {isFuture&&<span style={{fontSize:9,color:"#94A3B8",flexShrink:0}}>▼</span>}
+            {isNow&&<span style={{fontSize:9,background:"linear-gradient(90deg,#0A1628,#1B4080)",color:"#C9A84C",
+              borderRadius:4,padding:"2px 7px",fontWeight:800,flexShrink:0,animation:"pulse 2s ease infinite"}}>Berlangsung</span>}
+            {isFuture&&<span style={{fontSize:11,color:"#CBD5E1",flexShrink:0}}>▼</span>}
           </div>
         </div>
         {expandedId===ev.id&&<div style={{marginTop:4}}><ExpandedDetail ev={ev} hariEv={getHari(ev.tanggal)}/></div>}
-      </div>;
-    })}
+      </div>
+    </React.Fragment>;
+  };
+
+  return <div style={{position:"relative",paddingLeft:28}}>
+    {/* Garis vertikal */}
+    <div style={{position:"absolute",left:11,top:0,bottom:0,width:2,background:"linear-gradient(to bottom,#0A1628 0%,#E2E8F0 40%,#F1F5F9 100%)",borderRadius:2}}/>
+
+    {/* Empty state */}
+    {upcoming.length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#94A3B8"}}>
+      <div style={{fontSize:36,marginBottom:8}}>✅</div>
+      <div style={{fontSize:13,fontWeight:600,color:"#475569"}}>Tidak ada agenda mendatang</div>
+    </div>}
+
+    {/* Agenda mendatang */}
+    {upcoming.map((ev,i)=>renderCard(ev,i,upcoming))}
+
+    {/* Tombol lihat agenda lampau */}
+    {past.length>0&&<div style={{marginTop:16,marginBottom:4}}>
+      <button onClick={()=>setShowPast(p=>!p)} style={{
+        display:"flex",alignItems:"center",gap:8,width:"100%",padding:"10px 14px",
+        borderRadius:12,border:"1.5px dashed #CBD5E1",background:"#F8FAFC",
+        color:"#64748B",cursor:"pointer",fontSize:12,fontWeight:700,
+        transition:"all 0.15s"}}>
+        <div style={{width:12,height:12,borderRadius:"50%",background:"#CBD5E1",flexShrink:0}}/>
+        <span style={{flex:1,textAlign:"left"}}>
+          {showPast?"▲ Sembunyikan":"▼ Lihat"} {past.length} agenda yang sudah berlalu
+        </span>
+        <span style={{fontSize:10,background:"#E2E8F0",borderRadius:20,padding:"2px 8px",color:"#94A3B8"}}>
+          {past.length}
+        </span>
+      </button>
+      {showPast&&<div style={{marginTop:8,opacity:0.8}}>
+        {past.map((ev,i)=>renderCard(ev,i,past))}
+      </div>}
+    </div>}
   </div>;
 }
 
