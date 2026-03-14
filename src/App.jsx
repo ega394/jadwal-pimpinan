@@ -3172,7 +3172,6 @@ const AppCtx = React.createContext({});
 
 
 // ── AppCtx: provides App-scope deps to components outside App ──
-const AppCtx = React.createContext(null);
 
 // ==================== EVENT CARD (mobile) ====================
 function EventCard({ev}){
