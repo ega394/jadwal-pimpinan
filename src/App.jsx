@@ -3166,6 +3166,8 @@ export default function App(){
   const[showScrollTop,setShowScrollTop]=useState(false);
   const[lockSeconds,setLockSeconds]=useState(0);
   const[pullRefreshing,setPullRefreshing]=useState(false);
+  const[morningDismissed,setMorningDismissed]=useState(false);
+  const[viewMode,setViewMode]=useState("cards");
 
   // Session restore dilakukan di boot() useEffect di atas
 
@@ -3736,10 +3738,12 @@ const TH={
   // ==================== LOGIN ====================
   if(!user){
     const features=[
-      ["📋","Workflow Approval","Staf → Kasubbag → Kabag"],
-      ["🤖","Analisa AI","Upload undangan, isi otomatis"],
-      ["📄","Laporan PDF","Cetak rekap A4 landscape"],
-      ["📱","Multi Platform","Desktop, tablet & mobile"],
+      ["📋","Approval Berjenjang","Staf → Kasubbag → Kabag otomatis"],
+      ["🤖","AI Auto-Isi","Scan undangan, form terisi otomatis"],
+      ["📊","Briefing & Statistik","Ringkasan pagi + rekap kinerja tim"],
+      ["⏱️","Timeline Realtime","Jadwal visual dengan penanda waktu"],
+      ["🔔","Notifikasi WA & Push","Update instan ke seluruh tim"],
+      ["🔐","Keamanan Berlapis","Biometrik, sesi otomatis, anti brute-force"],
     ];
 
     // ── Social Media Banner Component ──
@@ -3885,7 +3889,7 @@ const TH={
             <SocialBanner/>
           </div>
 
-          <div style={{marginTop:"auto",paddingTop:8,textAlign:"center",color:MUTED,fontSize:10,letterSpacing:1.5,opacity:0.5}}>v0.6 Alpha · Release 20260603</div>
+          <div style={{marginTop:"auto",paddingTop:8,textAlign:"center",color:MUTED,fontSize:10,letterSpacing:1.5,opacity:0.5}}>v1.0 · Prokopim Tarakan · 2025</div>
         </div>
       </>}
 
@@ -3917,7 +3921,7 @@ const TH={
               <SocialBanner/>
             </div>
           </div>
-          <div style={{color:MUTED,fontSize:10,letterSpacing:1.5,opacity:0.5}}>v0.6 Alpha · Release 20260603</div>
+          <div style={{color:MUTED,fontSize:10,letterSpacing:1.5,opacity:0.5}}>v1.0 · Prokopim Tarakan · 2025</div>
         </div>
 
         {/* Right panel login */}
@@ -6424,7 +6428,6 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
     return`${greetW}, ${nm} — tidak ada jadwal mendekati, semua terkendali`;
   })();
 
-  const [morningDismissed,setMorningDismissed]=useState(false);
   const showMorningSummary=isMorningWindow&&!morningDismissed&&(todayEvents.length>0||pendingMyAction.length>0);
 
   const MorningSummaryCard=()=>{
@@ -6556,7 +6559,6 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
   // ═══════════════════════════════════════════════════════════════
   // FITUR 4: VIEW TOGGLE (Cards / Timeline) + FAB
   // ═══════════════════════════════════════════════════════════════
-  const [viewMode,setViewMode]=useState("cards"); // cards | timeline
 
   const mainContentJSX=(<div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",background:"#F0F4FA",overflow:"hidden"}}>
     {/* ── Desktop top bar ── */}
