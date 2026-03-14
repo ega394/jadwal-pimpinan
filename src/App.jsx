@@ -3483,83 +3483,6 @@ const smartGreetText=(()=>{
 
 const showMorningSummary=isMorningWindow&&!morningDismissed&&(todayEvents.length>0||pendingMyAction.length>0);
 
-const MorningSummaryCard=()=>{
-  if(!showMorningSummary)return null;
-  return <div style={{background:"linear-gradient(135deg,#0A1628,#1B3360)",borderRadius:16,padding:"18px",marginBottom:14,position:"relative",overflow:"hidden",animation:"upSpring 0.4s ease both"}}>
-    <div style={{position:"absolute",top:-20,right:-20,width:100,height:100,borderRadius:"50%",background:"rgba(201,168,76,0.08)"}}/>
-    <button onClick={()=>setMorningDismissed(true)} style={{position:"absolute",top:10,right:12,background:"rgba(255,255,255,0.15)",border:"none",borderRadius:6,color:"rgba(255,255,255,0.6)",cursor:"pointer",padding:"2px 8px",fontSize:11}}>✕</button>
-    <div style={{color:"#C9A84C",fontSize:10,fontWeight:800,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>Briefing Pagi</div>
-    <div style={{color:"white",fontSize:15,fontWeight:800,lineHeight:1.4,marginBottom:12}}>{smartGreetText}</div>
-    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-      {todayEvents.length>0&&<div style={{background:"rgba(255,255,255,0.1)",borderRadius:10,padding:"8px 12px",flex:1,minWidth:100}}>
-        <div style={{fontSize:20,fontWeight:900,color:"white"}}>{todayEvents.length}</div>
-        <div style={{fontSize:10,color:"rgba(255,255,255,0.6)",fontWeight:600}}>Jadwal hari ini</div>
-      </div>}
-      {pendingMyAction.length>0&&<div style={{background:"rgba(245,158,11,0.15)",borderRadius:10,padding:"8px 12px",flex:1,minWidth:100,border:"1px solid rgba(245,158,11,0.3)"}}>
-        <div style={{fontSize:20,fontWeight:900,color:"#FCD34D"}}>{pendingMyAction.length}</div>
-        <div style={{fontSize:10,color:"rgba(255,255,255,0.6)",fontWeight:600}}>Perlu tindakan</div>
-      </div>}
-      {myAssigned.length>0&&<div style={{background:"rgba(34,197,94,0.12)",borderRadius:10,padding:"8px 12px",flex:1,minWidth:100}}>
-        <div style={{fontSize:20,fontWeight:900,color:"#86EFAC"}}>{myAssigned.length}</div>
-        <div style={{fontSize:10,color:"rgba(255,255,255,0.6)",fontWeight:600}}>Ditugaskan ke Anda</div>
-      </div>}
-      {nextEvent&&<div style={{width:"100%",background:"rgba(255,255,255,0.08)",borderRadius:10,padding:"10px 12px",display:"flex",alignItems:"center",gap:10,marginTop:2}}>
-        <div style={{background:"#C9A84C",color:"#0A1628",borderRadius:8,padding:"4px 8px",fontSize:13,fontWeight:900,flexShrink:0}}>{nextEvent.jam}</div>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:12,fontWeight:700,color:"white",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{nextEvent.namaAcara}</div>
-          <div style={{fontSize:10,color:"rgba(255,255,255,0.5)"}}>{nextEvent.penyelenggara} · {nextEvent.lokasi||"-"}</div>
-        </div>
-      </div>}
-    </div>
-  </div>;
-};
-
-// ═══════════════════════════════════════════════════════════════
-// FITUR 2: STREAK & STATISTIK PRIBADI
-// ═══════════════════════════════════════════════════════════════
-const UserStreakCard=()=>{
-  const mySubmitted=events.filter(e=>e.submittedBy===user?.username);
-  const approved=mySubmitted.filter(e=>e.alur==="disetujui");
-  const rejected=mySubmitted.filter(e=>e.alur==="ditolak");
-  const thisMonth=mySubmitted.filter(e=>{const d=new Date(e.tanggal);const now=new Date();return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});
-  // Streak: berapa hari berturut-turut ada jadwal disetujui tanpa ditolak
-  const approvedDates=[...new Set(approved.map(e=>e.tanggal))].sort().reverse();
-  let streak=0;
-  if(approvedDates.length>0){
-    const today=new Date();
-    for(let i=0;i<60;i++){
-      const d=new Date(today);d.setDate(d.getDate()-i);
-      const ds=d.toISOString().slice(0,10);
-      if(approvedDates.includes(ds))streak++;
-      else if(i>0)break;
-    }
-  }
-  const successRate=mySubmitted.length>0?Math.round(approved.length/mySubmitted.length*100):0;
-  if(mySubmitted.length===0)return null;
-  return <div style={{background:"white",borderRadius:14,padding:"14px 16px",marginBottom:14,boxShadow:"0 2px 8px rgba(0,0,0,0.04)",border:"1px solid #E8EDF4"}}>
-    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-      <span style={{fontSize:16}}>📊</span>
-      <div style={{fontSize:12,fontWeight:800,color:NAVY}}>Statistik Anda</div>
-      <div style={{marginLeft:"auto",fontSize:10,color:"#94A3B8"}}>{new Date().toLocaleDateString("id-ID",{month:"long",year:"numeric"})}</div>
-    </div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-      <div style={{textAlign:"center",padding:"10px 4px",background:"#F8FAFF",borderRadius:10}}>
-        <div style={{fontSize:22,fontWeight:900,color:NAVY}}>{thisMonth.length}</div>
-        <div style={{fontSize:9,color:"#64748B",fontWeight:700,marginTop:2}}>Bulan Ini</div>
-      </div>
-      <div style={{textAlign:"center",padding:"10px 4px",background:successRate>=80?"#F0FDF4":"#FFFBEB",borderRadius:10}}>
-        <div style={{fontSize:22,fontWeight:900,color:successRate>=80?GREEN:"#D97706"}}>{successRate}%</div>
-        <div style={{fontSize:9,color:"#64748B",fontWeight:700,marginTop:2}}>Approval Rate</div>
-      </div>
-      <div style={{textAlign:"center",padding:"10px 4px",background:streak>0?"#EEF2FF":"#F8FAFF",borderRadius:10}}>
-        <div style={{fontSize:22,fontWeight:900,color:streak>0?"#4F46E5":"#94A3B8"}}>{streak||"-"}</div>
-        <div style={{fontSize:9,color:"#64748B",fontWeight:700,marginTop:2}}>{streak>0?"Hari Streak":"Streak"}</div>
-      </div>
-    </div>
-    {streak>=7&&<div style={{marginTop:10,background:"linear-gradient(90deg,#EEF2FF,#F5F3FF)",borderRadius:8,padding:"6px 10px",fontSize:11,color:"#4338CA",fontWeight:700,textAlign:"center"}}>🔥 {streak} hari berturut-turut jadwal disetujui!</div>}
-  </div>;
-};
-
 // ═══════════════════════════════════════════════════════════════
 // FITUR 3: TIMELINE VISUAL
 // ═══════════════════════════════════════════════════════════════
@@ -6582,6 +6505,85 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
   // FITUR 4: VIEW TOGGLE (Cards / Timeline) + FAB
   // ═══════════════════════════════════════════════════════════════
 
+
+  const MorningSummaryCard=()=>{
+    if(!showMorningSummary)return null;
+    return <div style={{background:"linear-gradient(135deg,#0A1628,#1B3360)",borderRadius:16,padding:"18px",marginBottom:14,position:"relative",overflow:"hidden",animation:"upSpring 0.4s ease both"}}>
+      <div style={{position:"absolute",top:-20,right:-20,width:100,height:100,borderRadius:"50%",background:"rgba(201,168,76,0.08)"}}/>
+      <button onClick={()=>setMorningDismissed(true)} style={{position:"absolute",top:10,right:12,background:"rgba(255,255,255,0.15)",border:"none",borderRadius:6,color:"rgba(255,255,255,0.6)",cursor:"pointer",padding:"2px 8px",fontSize:11}}>✕</button>
+      <div style={{color:"#C9A84C",fontSize:10,fontWeight:800,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>Briefing Pagi</div>
+      <div style={{color:"white",fontSize:15,fontWeight:800,lineHeight:1.4,marginBottom:12}}>{smartGreetText}</div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        {todayEvents.length>0&&<div style={{background:"rgba(255,255,255,0.1)",borderRadius:10,padding:"8px 12px",flex:1,minWidth:100}}>
+          <div style={{fontSize:20,fontWeight:900,color:"white"}}>{todayEvents.length}</div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.6)",fontWeight:600}}>Jadwal hari ini</div>
+        </div>}
+        {pendingMyAction.length>0&&<div style={{background:"rgba(245,158,11,0.15)",borderRadius:10,padding:"8px 12px",flex:1,minWidth:100,border:"1px solid rgba(245,158,11,0.3)"}}>
+          <div style={{fontSize:20,fontWeight:900,color:"#FCD34D"}}>{pendingMyAction.length}</div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.6)",fontWeight:600}}>Perlu tindakan</div>
+        </div>}
+        {myAssigned.length>0&&<div style={{background:"rgba(34,197,94,0.12)",borderRadius:10,padding:"8px 12px",flex:1,minWidth:100}}>
+          <div style={{fontSize:20,fontWeight:900,color:"#86EFAC"}}>{myAssigned.length}</div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.6)",fontWeight:600}}>Ditugaskan ke Anda</div>
+        </div>}
+        {nextEvent&&<div style={{width:"100%",background:"rgba(255,255,255,0.08)",borderRadius:10,padding:"10px 12px",display:"flex",alignItems:"center",gap:10,marginTop:2}}>
+          <div style={{background:"#C9A84C",color:"#0A1628",borderRadius:8,padding:"4px 8px",fontSize:13,fontWeight:900,flexShrink:0}}>{nextEvent.jam}</div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:12,fontWeight:700,color:"white",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{nextEvent.namaAcara}</div>
+            <div style={{fontSize:10,color:"rgba(255,255,255,0.5)"}}>{nextEvent.penyelenggara} · {nextEvent.lokasi||"-"}</div>
+          </div>
+        </div>}
+      </div>
+    </div>;
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  // FITUR 2: STREAK & STATISTIK PRIBADI
+  // ═══════════════════════════════════════════════════════════════
+  const UserStreakCard=()=>{
+    const mySubmitted=events.filter(e=>e.submittedBy===user?.username);
+    const approved=mySubmitted.filter(e=>e.alur==="disetujui");
+    const rejected=mySubmitted.filter(e=>e.alur==="ditolak");
+    const thisMonth=mySubmitted.filter(e=>{const d=new Date(e.tanggal);const now=new Date();return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});
+    // Streak: berapa hari berturut-turut ada jadwal disetujui tanpa ditolak
+    const approvedDates=[...new Set(approved.map(e=>e.tanggal))].sort().reverse();
+    let streak=0;
+    if(approvedDates.length>0){
+      const today=new Date();
+      for(let i=0;i<60;i++){
+        const d=new Date(today);d.setDate(d.getDate()-i);
+        const ds=d.toISOString().slice(0,10);
+        if(approvedDates.includes(ds))streak++;
+        else if(i>0)break;
+      }
+    }
+    const successRate=mySubmitted.length>0?Math.round(approved.length/mySubmitted.length*100):0;
+    if(mySubmitted.length===0)return null;
+    return <div style={{background:"white",borderRadius:14,padding:"14px 16px",marginBottom:14,boxShadow:"0 2px 8px rgba(0,0,0,0.04)",border:"1px solid #E8EDF4"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+        <span style={{fontSize:16}}>📊</span>
+        <div style={{fontSize:12,fontWeight:800,color:NAVY}}>Statistik Anda</div>
+        <div style={{marginLeft:"auto",fontSize:10,color:"#94A3B8"}}>{new Date().toLocaleDateString("id-ID",{month:"long",year:"numeric"})}</div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+        <div style={{textAlign:"center",padding:"10px 4px",background:"#F8FAFF",borderRadius:10}}>
+          <div style={{fontSize:22,fontWeight:900,color:NAVY}}>{thisMonth.length}</div>
+          <div style={{fontSize:9,color:"#64748B",fontWeight:700,marginTop:2}}>Bulan Ini</div>
+        </div>
+        <div style={{textAlign:"center",padding:"10px 4px",background:successRate>=80?"#F0FDF4":"#FFFBEB",borderRadius:10}}>
+          <div style={{fontSize:22,fontWeight:900,color:successRate>=80?GREEN:"#D97706"}}>{successRate}%</div>
+          <div style={{fontSize:9,color:"#64748B",fontWeight:700,marginTop:2}}>Approval Rate</div>
+        </div>
+        <div style={{textAlign:"center",padding:"10px 4px",background:streak>0?"#EEF2FF":"#F8FAFF",borderRadius:10}}>
+          <div style={{fontSize:22,fontWeight:900,color:streak>0?"#4F46E5":"#94A3B8"}}>{streak||"-"}</div>
+          <div style={{fontSize:9,color:"#64748B",fontWeight:700,marginTop:2}}>{streak>0?"Hari Streak":"Streak"}</div>
+        </div>
+      </div>
+      {streak>=7&&<div style={{marginTop:10,background:"linear-gradient(90deg,#EEF2FF,#F5F3FF)",borderRadius:8,padding:"6px 10px",fontSize:11,color:"#4338CA",fontWeight:700,textAlign:"center"}}>🔥 {streak} hari berturut-turut jadwal disetujui!</div>}
+    </div>;
+  };
+
+
   // ── AppCtx value — provides all App-scope deps to extracted components ──
   const _ctxValue={
     expandedId,setExp,role,user,isMobile,
@@ -6770,7 +6772,7 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
   </div>);
 
   // ==================== RENDER ====================
-  return <AppCtx.Provider value={_ctxValue}>
+  return (<AppCtx.Provider value={_ctxValue}>
   <div style={{minHeight:"100vh",width:"100%",background:NAVY,display:"flex"}}>
     <style>{CSS}</style>
     {toast&&<Toast msg={toast.msg} type={toast.type}/>}
@@ -6864,6 +6866,6 @@ function PimpinanView({events, role, user, onDisposisi, onCatatanSave, setDelegT
        </div>
       :<div style={{width:"100%",minHeight:"100vh",display:"flex",background:NAVY}}>{sidebarJSX}{mainContentJSX}</div>
     }
-  </div>;
-  </AppCtx.Provider>;
+  </div>
+  </AppCtx.Provider>);
 }
